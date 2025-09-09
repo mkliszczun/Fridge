@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JWT Test Client</title>
+</head>
+<body>
+<h2>Login</h2>
+<label>Username:</label>
+<input type="text" id="username" value="User"><br>
+<label>Password:</label>
+<input type="password" id="password" value="pass"><br>
+<button onclick="login()">Login</button>
+
+<h3>Token:</h3>
+<pre id="tokenBox">No token yet</pre>
+
+<hr>
+
+<h2>Access Secured Endpoint</h2>
+<button onclick="accessSecured()">GET /hello</button>
+<pre id="responseBox"></pre>
+
+<script>
+    let token = '';
+
+    function login() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        fetch('/auth/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({login: username, password: password})
+        })
+        .then(response => response.json())
+        .then(data => {
+            token = data.token;
+            document.getElementById('tokenBox').innerText = token;
+        })
+        .catch(err => alert('Login failed: ' + err));
+    }
+
+    function accessSecured() {
+        if (!token) {
+            alert('Please login first!');
+            return;
+        }
+
+        fetch('/hello', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        })
+        .then(response => {
+            if (response.status === 200) {
+                return response.text();
+            } else {
+                return 'Error: ' + response.status;
+            }
+        })
+        .then(data => {
+            document.getElementById('responseBox').innerText = data;
+        })
+        .catch(err => alert('Request failed: ' + err));
+    }
+</script>
+</body>
+</html>
