@@ -66,8 +66,9 @@ class FlowE2ETest {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of(
-                                "name", "Mleko 2%",
+                                "name", "Mleko",
                                 "productType", "DAIRY",
+                                "ean", "1234567891234",
                                 "defaultUnit", "MILLILITER"
                         ))))
                 .andExpect(status().isCreated())
@@ -98,11 +99,10 @@ class FlowE2ETest {
                 .andExpect(status().isNoContent());
 
         // 7) GET ITEM -> upewnij się, że zarchiwizowany (jeśli zwracasz)
-        // (opcjonalnie – zależnie jak masz zaprojektowane API)
-        // mvc.perform(get("/api/fridge-items/{id}", itemId)
-        //         .header("Authorization", "Bearer " + token))
-        //     .andExpect(status().isOk())
-        //     .andExpect(jsonPath("$.state").value("DISCARDED"));
+         mvc.perform(get("/api/fridge-items/{id}", itemId)
+                 .header("Authorization", "Bearer " + token))
+             .andExpect(status().isOk())
+             .andExpect(jsonPath("$.state").value("DISCARDED"));
     }
 
     // --- helpers ---

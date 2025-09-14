@@ -2,6 +2,8 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.RegisterRequest;
 import com.example.demo.entity.LoginRequest;
+import com.example.demo.security.AppUserDetails;
+import com.example.demo.security.JpaUserDetailsManager;
 import com.example.demo.util.JwtUtil;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.stream.Collectors.toList;
+
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -42,22 +46,21 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@RequestBody LoginRequest loginRequest){
-        Authentication authentication = authenticationManager
-                .authenticate(new UsernamePasswordAuthenticationToken(loginRequest.getLogin(), loginRequest.getPassword()));
+    public Map<String, String> login(@RequestBody LoginRequest req) {
+        Authentication auth = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(req.getLogin(), req.getPassword())
+        );
 
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        List<String> roles = userDetails.getAuthorities()
-                .stream()
-                .map(GrantedAuthority::getAuthority)
-                .toList();
+        AppUserDetails principal = (AppUserDetails) auth.getPrincipal();
 
-        String token = jwtUtil.generateToken(authentication.getName(), roles);
-        Map<String, String> response = Map.of("token", token);
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(response);
+        List<String> roles = principal.getAuthorities().stream()
+                .map(a -> a.getAuthority().startsWith("ROLE_") ? a.getAuthority().substring(5) : a.getAuthority())
+                .collect(toList());
+
+        String token = jwtUtil.generateToken(principal.getUsername(), principal.getId(), roles);
+        return Map.of("token", token);
     }
+
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, String>> register(@Valid @RequestBody RegisterRequest req) {
@@ -76,11 +79,13 @@ public class AuthController {
         userDetailsManager.createUser(user);
 
         // (opcjonalnie) od razu zwróć JWT, żeby uprościć flow test
-        var roles = user.getAuthorities().stream()
+        AppUserDetails created = (AppUserDetails) userDetailsManager.loadUserByUsername(req.login());
+        var roles = created.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
+                .map(a -> a.startsWith("ROLE_") ? a.substring(5) : a)
                 .toList();
 
-        String token = jwtUtil.generateToken(user.getUsername(), roles);
+        String token = jwtUtil.generateToken(created.getUsername(), created.getId(), roles);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .contentType(MediaType.APPLICATION_JSON)

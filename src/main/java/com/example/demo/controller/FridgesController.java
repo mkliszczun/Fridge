@@ -2,10 +2,13 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.FridgeCreateRequest;
 import com.example.demo.dto.FridgeResponse;
+import com.example.demo.enums.FridgeRole;
 import com.example.demo.fridge.Fridge;
+import com.example.demo.security.AppUserDetails;
 import com.example.demo.service.FridgeService;
 import io.jsonwebtoken.Jwt;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,35 +36,15 @@ public class FridgesController {
     public record FridgeResponse(UUID id, String name) {}
 
     @PostMapping
-    public ResponseEntity<FridgeResponse> createFridge(
-            @Valid @RequestBody CreateFridgeRequest req,
-            Authentication authentication
-    ) {
-        UUID currentUserId = extractUserId(authentication);
-
-        Fridge fridge = fridgeService.createFridge(req.name(), currentUserId);
-
-        // 201 + body {id, name}; Location nie jest asercją w teście, ale jest mile widziany.
-        URI location = URI.create("/api/fridges/" + fridge.getId());
-        return ResponseEntity
-                .created(location)
-                .body(new FridgeResponse(fridge.getId(), fridge.getName()));
+    @ResponseStatus(HttpStatus.CREATED)
+    public FridgeResponse create(@Valid @RequestBody FridgeCreateRequest req, @AuthenticationPrincipal AppUserDetails user) {
+        var userId = user.getId();
+        Fridge fridge = fridgeService.createFridge(req.name(), userId);
+        return toResponse(fridge, FridgeRole.OWNER, 1);
     }
 
-    // --- helpers ---
-    private UUID extractUserId(Authentication authentication) {
-        if (authentication instanceof JwtAuthenticationToken jwtAuth) {
-            Object sub = jwtAuth.getToken().getClaims().getOrDefault("sub",
-                    jwtAuth.getToken().getClaims().get("user_id"));
-            if (sub instanceof String s) {
-                try {
-                    return UUID.fromString(s);
-                } catch (IllegalArgumentException ignored) {
-                    // wpadniemy niżej do błędu 401
-                }
-            }
-        }
-        // (opcjonalnie) możesz dodać inne ścieżki np. principal z polem id
-        throw new ResponseStatusException(UNAUTHORIZED, "Cannot resolve current user id from token");
+
+    private FridgeResponse toResponse(Fridge f, FridgeRole role, Integer members) {
+        return new FridgeResponse(f.getId(), f.getName());
     }
 }// todo - zasadniczo to to do wypierniczenia, trzeba napisać kontrolery, chat zgubił kontekst, bredzi, trzeba pisać samemu (pod test e2e)
