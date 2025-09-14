@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findByEan(String ean);
+    Optional<Product> findFirstByNameIgnoreCase(String name);
+    boolean existsByEan(String ean);
 }
