@@ -1,7 +1,9 @@
 package com.example.demo.service;
 
 import com.example.demo.enums.ProductType;
+import com.example.demo.exception.ParsingProductFromApiException;
 import com.example.demo.fridge.Product;
+import com.example.demo.off.OffClient;
 import com.example.demo.repository.ProductRepository;
 import com.example.demo.enums.Unit;
 import jakarta.persistence.EntityNotFoundException;
@@ -14,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +33,10 @@ class ProductServiceImplTest {
 
     @InjectMocks
     private ProductServiceImpl productService;
+
+    @Mock
+    private OffClient offClient;
+
 
     private Product sampleProduct;
     private final UUID productId = UUID.randomUUID();
@@ -149,5 +156,102 @@ class ProductServiceImplTest {
         assertThatThrownBy(() -> productService.findProductByEan("5901234567890"))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("EAN");
+    }
+
+    @Test
+    void parseProductFromApi_success_full() throws Exception {
+        String ean = "3017620422003";
+        var nutr = new OffClient.OffNutriments(539.0, 6.3, 57.5, 30.9);
+        var prod = new OffClient.OffProduct("Nutella", "Ferrero", nutr,
+                List.of("en:breakfasts", "en:spreads"));
+        var resp = new OffClient.OffResponse(1, ean, prod);
+
+        given(offClient.getByEan(ean)).willReturn(reactor.core.publisher.Mono.just(resp));
+
+        Product p = productService.parseProductFromApi(ean);
+
+        assertThat(p.getEan()).isEqualTo(ean);
+        assertThat(p.getName()).isEqualTo("Nutella");
+        assertThat(p.getBrand()).isEqualTo("Ferrero");
+        assertThat(p.getProductType()).isEqualTo(ProductType.OTHER);
+        assertThat(p.getKcal100()).isEqualByComparingTo("539.00");
+        assertThat(p.getProtein100()).isEqualByComparingTo("6.30");
+        assertThat(p.getCarbs100()).isEqualByComparingTo("57.50");
+        assertThat(p.getFat100()).isEqualByComparingTo("30.90");
+
+        verify(offClient).getByEan(ean);
+    }
+
+    @Test
+    void parseProductFromApi_success_partial_missingFields() throws Exception {
+        String ean = "0001112223334";
+        var prod = new OffClient.OffProduct("Plain Name", "", null, List.of());
+        var resp = new OffClient.OffResponse(1, ean, prod);
+
+        given(offClient.getByEan(ean)).willReturn(reactor.core.publisher.Mono.just(resp));
+
+        Product p = productService.parseProductFromApi(ean);
+
+        assertThat(p.getName()).isEqualTo("Plain Name");
+        assertThat(p.getBrand()).isNull();
+        assertThat(p.getKcal100()).isNull();
+        assertThat(p.getProtein100()).isNull();
+        assertThat(p.getCarbs100()).isNull();
+        assertThat(p.getFat100()).isNull();
+
+        verify(offClient).getByEan(ean);
+    }
+
+    @Test
+    void parseProductFromApi_error_notFound_status0() {
+        String ean = "9999999999999";
+        var resp = new OffClient.OffResponse(0, ean, null);
+
+        given(offClient.getByEan(ean)).willReturn(reactor.core.publisher.Mono.just(resp));
+
+        assertThatThrownBy(() -> productService.parseProductFromApi(ean))
+                .isInstanceOf(ParsingProductFromApiException.class);
+
+        verify(offClient).getByEan(ean);
+    }
+
+    @Test
+    void parseProductFromApi_error_missingName() {
+        String ean = "1234567890123";
+        var nutr = new OffClient.OffNutriments(null, 1.0, null, 2.0);
+        var prod = new OffClient.OffProduct(null, "Brand", nutr, List.of());
+        var resp = new OffClient.OffResponse(1, ean, prod);
+
+        given(offClient.getByEan(ean)).willReturn(reactor.core.publisher.Mono.just(resp));
+
+        assertThatThrownBy(() -> productService.parseProductFromApi(ean))
+                .isInstanceOf(ParsingProductFromApiException.class);
+
+        verify(offClient).getByEan(ean);
+    }
+
+    @Test
+    void parseProductFromApi_error_nullResponse() {
+        String ean = "1231231231231";
+        given(offClient.getByEan(ean)).willReturn(reactor.core.publisher.Mono.empty());
+
+        assertThatThrownBy(() -> productService.parseProductFromApi(ean))
+                .isInstanceOf(ParsingProductFromApiException.class);
+
+        verify(offClient).getByEan(ean);
+    }
+
+    @Test
+    void parseProductFromApi_success_brandFirstOnly() throws Exception {
+        String ean = "5555555555555";
+        var prod = new OffClient.OffProduct("Multi Brand", "FirstBrand, SecondBrand", null, List.of());
+        var resp = new OffClient.OffResponse(1, ean, prod);
+
+        given(offClient.getByEan(ean)).willReturn(reactor.core.publisher.Mono.just(resp));
+
+        Product p = productService.parseProductFromApi(ean);
+
+        assertThat(p.getBrand()).isEqualTo("FirstBrand");
+        verify(offClient).getByEan(ean);
     }
 }
