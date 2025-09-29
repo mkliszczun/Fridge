@@ -13,6 +13,8 @@ import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -26,7 +28,7 @@ public class FridgesController {
 
     // --- DTOs ---
     public record CreateFridgeRequest(@NotBlank String name) {}
-    public record FridgeResponse(UUID id, String name) {}
+    public record FridgeResponse(UUID id, String name) {} //Todo - remove these records
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -34,6 +36,17 @@ public class FridgesController {
         var userId = user.getId();
         Fridge fridge = fridgeService.createFridge(req.name(), userId);
         return toResponse(fridge, FridgeRole.OWNER, 1);
+    }
+
+    @GetMapping
+    List<FridgeResponse> getAllFridges(@AuthenticationPrincipal AppUserDetails user){
+        List<Fridge> fridges = fridgeService.listMyFridges(user.getId());
+        List<FridgeResponse> res = new ArrayList<>();
+
+        for (Fridge fridge : fridges){
+            res.add(toResponse(fridge, FridgeRole.OWNER, 1));
+        }
+        return res;
     }
 
 

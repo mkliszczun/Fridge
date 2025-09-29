@@ -5,6 +5,7 @@ import io.github.mkliszczun.fridge.enums.Unit;
 import io.github.mkliszczun.fridge.exception.ParsingProductFromApiException;
 import io.github.mkliszczun.fridge.fridge.Product;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface ProductService {
@@ -18,4 +19,6 @@ public interface ProductService {
     Product findProductByEan(String ean);
 
     Product parseProductFromApi(String ean) throws ParsingProductFromApiException;
+
+    List<Product> findAllProducts();
 }

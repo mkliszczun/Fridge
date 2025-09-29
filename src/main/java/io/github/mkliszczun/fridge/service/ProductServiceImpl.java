@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -118,6 +119,11 @@ public class ProductServiceImpl implements ProductService {
         } catch (Exception e) {
             throw new ParsingProductFromApiException("Error while downloading/parsing OFF: " + e.getMessage());
         }
+    }
+
+    @Override
+    public List<Product> findAllProducts() {
+        return productRepository.findAll();
     }
 
     private static boolean hasText(String s) {

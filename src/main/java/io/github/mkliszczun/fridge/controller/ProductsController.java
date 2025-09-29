@@ -8,8 +8,11 @@ import io.github.mkliszczun.fridge.service.ProductService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.parameters.P;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -27,6 +30,11 @@ public class ProductsController {
         UUID userId = userDetails.getId();
         Product savedProduct = productService.createProduct(req.name(), req.productType(), req.ean(), req.defaultUnit());
         return toResponse(savedProduct);
+    }
+
+    @GetMapping
+    public List<Product> listAllProducts(){
+        return productService.findAllProducts();
     }
 
 
