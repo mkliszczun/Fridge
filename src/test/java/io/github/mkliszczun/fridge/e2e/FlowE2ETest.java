@@ -98,7 +98,7 @@ class FlowE2ETest {
                 .andExpect(status().isNoContent());
 
         // 7) GET ITEM
-         mvc.perform(get("/api/fridge-items/{id}", itemId)
+         mvc.perform(get("/api/fridge-items/item/{id}", itemId)
                  .header("Authorization", "Bearer " + token))
              .andExpect(status().isOk())
              .andExpect(jsonPath("$.state").value("DISCARDED"));

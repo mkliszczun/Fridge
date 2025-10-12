@@ -32,7 +32,8 @@ public class FridgeItemController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public FridgeItemResponse create(@Valid @RequestBody FridgeItemCreateRequest req, @AuthenticationPrincipal AppUserDetails currentUser) {
+    public FridgeItemResponse create(@Valid @RequestBody FridgeItemCreateRequest req,
+                                     @AuthenticationPrincipal AppUserDetails currentUser) {
         var userId = currentUser.getId();
         var item = itemService.createItem(
                 req.fridgeId(),
@@ -47,8 +48,8 @@ public class FridgeItemController {
         return toResponse(item);
     }
 
-    @GetMapping
-    public List<FridgeItemResponse> list(@RequestParam UUID fridgeId,
+    @GetMapping("/{fridgeId}")
+    public List<FridgeItemResponse> list(@PathVariable UUID fridgeId,
                                          @RequestParam(required = false, defaultValue = "false") boolean expiringSoon,
                                          @AuthenticationPrincipal AppUserDetails currentUser) {
         var userId = currentUser.getId();
@@ -57,7 +58,7 @@ public class FridgeItemController {
                 .toList();
     }
 
-    @GetMapping("/{itemId}")
+    @GetMapping("/item/{itemId}")
     public FridgeItemResponse get(@PathVariable UUID itemId,
                                   @AuthenticationPrincipal AppUserDetails currentUser) {
         var userId = currentUser.getId();

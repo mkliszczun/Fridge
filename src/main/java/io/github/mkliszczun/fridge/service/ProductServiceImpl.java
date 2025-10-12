@@ -2,6 +2,7 @@ package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.enums.ProductType;
 import io.github.mkliszczun.fridge.enums.Unit;
+import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.exception.ParsingProductFromApiException;
 import io.github.mkliszczun.fridge.fridge.Product;
 import io.github.mkliszczun.fridge.off.OffClient;
@@ -66,7 +67,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Product findProductByEan(String ean) {
         return productRepository.findByEan(ean)
-                .orElseThrow(() -> new EntityNotFoundException("Product not found by EAN: " + ean));
+                .orElseThrow(() -> new NotFoundException("Product not found by EAN: " + ean));
     }
 
     @Override

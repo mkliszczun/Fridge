@@ -23,7 +23,8 @@ class OffClientSmokeTest {
 
     @Test
     void shouldFetchProductAndPrint() throws Exception {
-        String ean = "3017620422003";
+//        String ean = "3017620422003";
+        String ean = "5900783009472";
 
         OffClient.OffResponse resp = offClient.getByEan(ean)
                 .block(Duration.ofSeconds(10));

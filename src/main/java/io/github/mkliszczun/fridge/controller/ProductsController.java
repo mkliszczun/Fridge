@@ -5,6 +5,7 @@ import io.github.mkliszczun.fridge.dto.AddProductResponse;
 import io.github.mkliszczun.fridge.fridge.Product;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
 import io.github.mkliszczun.fridge.service.ProductService;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,6 +38,13 @@ public class ProductsController {
         return productService.findAllProducts();
     }
 
+    @GetMapping("/{ean}")
+    public AddProductResponse findByEan(@PathVariable String ean,
+                             @AuthenticationPrincipal AppUserDetails userDetails){
+        UUID userId = userDetails.getId();
+        Product product = productService.findProductByEan(ean);
+        return toResponse(product);
+    }
 
     private AddProductResponse toResponse(Product product) {
         return new AddProductResponse(product.getId(),
