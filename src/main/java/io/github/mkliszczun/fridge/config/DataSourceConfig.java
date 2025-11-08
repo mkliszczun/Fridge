@@ -6,28 +6,36 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
 
 import javax.sql.DataSource;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 @Configuration
 public class DataSourceConfig {
 
     /**
-     * Injects changed value
-     * If not found - app will not run
+     * Important: this class expects variable DATABASE_URL
+     * If variable not found it will not run
      */
     @Value("${DATABASE_URL}")
     private String databaseUrl;
 
     @Bean
-    public DataSource dataSource() {
-        String jdbcUrl = databaseUrl;
+    public DataSource dataSource() throws URISyntaxException {
 
 
-        if (databaseUrl != null && databaseUrl.startsWith("postgresql://")) {
-            jdbcUrl = "jdbc:" + databaseUrl;
-        }
+        URI dbUri = new URI(databaseUrl.replace("postgresql://", "postgres://"));
+
+        String userInfo = dbUri.getUserInfo();
+        String username = userInfo.split(":")[0];
+        String password = userInfo.split(":")[1];
+
+
+        String jdbcUrl = "jdbc:postgresql://" + dbUri.getHost() + dbUri.getPath();
 
         return DataSourceBuilder.create()
                 .url(jdbcUrl)
+                .username(username)
+                .password(password)
                 .build();
     }
 }
