@@ -30,7 +30,7 @@ public class FridgeItem extends Audit {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")
-    private Product product; // opcjonalnie — można dodać „customName”
+    private Product product;
 
     private String customName;
 
