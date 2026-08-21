@@ -3,23 +3,24 @@ package io.github.mkliszczun.fridge.util;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Component
+@RequiredArgsConstructor
 public class JwtUtil {
-    private final int expiration = 1000 * 60 * 60; // 1h
-    private final String secret = "MySuperStrongSecretKeyWithAtLeast32Chars123456";
+
+    private final JwtProperties jwtProperties;
 
     private SecretKey getSigningKey(){
-        return new SecretKeySpec(secret.getBytes(), "HmacSHA256");
+        return new SecretKeySpec(jwtProperties.getSecret().getBytes(), "HmacSHA256");
     }
 
     public String generateToken(String username, UUID userId, List<String> roles){
@@ -28,7 +29,7 @@ public class JwtUtil {
                 .claim("uid", userId != null ? userId.toString() : null)
                 .claim("roles", roles)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getExpiration()))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
