@@ -1,6 +1,7 @@
 package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.enums.ProductType;
+import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.exception.ParsingProductFromApiException;
 import io.github.mkliszczun.fridge.fridge.Product;
 import io.github.mkliszczun.fridge.off.OffClient;
@@ -155,7 +156,7 @@ class ProductServiceImplTest {
                 .willReturn(Optional.empty());
 
         assertThatThrownBy(() -> productService.findProductByEan("5901234567890"))
-                .isInstanceOf(EntityNotFoundException.class)
+                .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("EAN");
     }
 

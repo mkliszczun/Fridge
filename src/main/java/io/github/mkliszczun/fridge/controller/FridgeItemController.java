@@ -3,6 +3,7 @@ package io.github.mkliszczun.fridge.controller;
 import io.github.mkliszczun.fridge.dto.FridgeItemCreateRequest;
 import io.github.mkliszczun.fridge.dto.FridgeItemResponse;
 import io.github.mkliszczun.fridge.dto.UpdateAmountRequest;
+import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.fridge.FridgeItem;
 import io.github.mkliszczun.fridge.repository.FridgeItemRepository;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
@@ -63,7 +64,7 @@ public class FridgeItemController {
                                   @AuthenticationPrincipal AppUserDetails currentUser) {
         var userId = currentUser.getId();
         var item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new RuntimeException("Item not found"));
+                .orElseThrow(() -> new NotFoundException("Item not found"));
         itemService.list(item.getFridge().getId(), userId, false);
         return toResponse(item);
     }
