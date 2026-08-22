@@ -1,9 +1,11 @@
 package io.github.mkliszczun.fridge.repository;
 
+import io.github.mkliszczun.fridge.fridge.Fridge;
 import io.github.mkliszczun.fridge.fridge.FridgeMember;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,4 +19,7 @@ public interface FridgeMemberRepository extends JpaRepository<FridgeMember, UUID
 
     @Query("select (count(m) > 0) from FridgeMember m where m.userId = :userId and m.isDefault = true")
     boolean existsDefaultForUser(UUID userId);
+
+    @Query("select distinct m.fridge from FridgeMember m where m.userId = :userId")
+    List<Fridge> findFridgesByUserId(UUID userId);
 }

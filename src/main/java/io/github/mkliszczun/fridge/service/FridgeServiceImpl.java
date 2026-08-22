@@ -92,14 +92,7 @@ public class FridgeServiceImpl implements FridgeService {
     @Override
     @Transactional
     public List<Fridge> listMyFridges(UUID currentUserId) {
-        // Najprościej przez members → fridges. Możesz dodać dedykowane zapytanie; tu użyję encji:
-        // (W praktyce lepiej napisać custom query + DTO projection)
-        // Poniżej: pobierz wszystkie członkostwa i zmapuj na lodówki
-        return memberRepository.findAll().stream()
-                .filter(m -> m.getUserId().equals(currentUserId))
-                .map(FridgeMember::getFridge)
-                .distinct()
-                .toList();
+        return memberRepository.findFridgesByUserId(currentUserId);
     }
 
     @Override

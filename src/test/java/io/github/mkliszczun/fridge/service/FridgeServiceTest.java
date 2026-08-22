@@ -123,6 +123,20 @@ class FridgeServiceTest {
                 .hasMessageContaining("Not a member");
     }
 
+    // -------- listMyFridges --------
+
+    @Test
+    void listMyFridges_usesRepositoryQueryForCurrentUser() {
+        List<Fridge> expected = List.of(persistedFridge);
+        when(memberRepository.findFridgesByUserId(userId)).thenReturn(expected);
+
+        List<Fridge> result = fridgeService.listMyFridges(userId);
+
+        assertThat(result).isEqualTo(expected);
+        verify(memberRepository).findFridgesByUserId(userId);
+        verify(memberRepository, never()).findAll();
+    }
+
     // -------- deleteFridge --------
 
     @Test
