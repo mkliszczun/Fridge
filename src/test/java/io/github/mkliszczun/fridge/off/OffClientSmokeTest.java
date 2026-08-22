@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Duration;
 
@@ -13,6 +15,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @Disabled("Smoke test - run manually")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@ActiveProfiles("test")
+@AutoConfigureTestDatabase
 class OffClientSmokeTest {
 
     @Autowired
