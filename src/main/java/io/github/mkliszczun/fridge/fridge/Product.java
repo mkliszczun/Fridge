@@ -36,6 +36,7 @@ public class Product extends Audit {
     @PositiveOrZero private BigDecimal carbs100;
     @PositiveOrZero private BigDecimal fat100;
 
+    @PositiveOrZero
     private Integer shelfLifeAfterOpeningDays; // null => użyj domyślnych per productType
 
     @Enumerated(EnumType.STRING)

@@ -2,6 +2,7 @@ package io.github.mkliszczun.fridge.controller;
 
 import io.github.mkliszczun.fridge.dto.AddProductRequest;
 import io.github.mkliszczun.fridge.dto.AddProductResponse;
+import io.github.mkliszczun.fridge.dto.UpdateShelfLifeAfterOpeningRequest;
 import io.github.mkliszczun.fridge.fridge.Product;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
 import io.github.mkliszczun.fridge.service.ProductService;
@@ -28,14 +29,29 @@ public class ProductsController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AddProductResponse addProduct(@Valid @RequestBody AddProductRequest req, @AuthenticationPrincipal AppUserDetails userDetails){
-        UUID userId = userDetails.getId();
-        Product savedProduct = productService.createProduct(req.name(), req.productType(), req.ean(), req.defaultUnit());
+        Product savedProduct = productService.createProduct(
+                req.name(),
+                req.productType(),
+                req.ean(),
+                req.defaultUnit(),
+                req.shelfLifeAfterOpeningDays());
         return toResponse(savedProduct);
     }
 
+    @PatchMapping("/{id}/shelf-life-after-opening")
+    public AddProductResponse updateShelfLifeAfterOpening(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateShelfLifeAfterOpeningRequest request) {
+        return toResponse(productService.updateShelfLifeAfterOpeningDays(
+                id, request.shelfLifeAfterOpeningDays()));
+    }
+
     @GetMapping
-    public List<Product> listAllProducts(){
-        return productService.findAllProducts();
+    public List<AddProductResponse> listAllProducts(){
+        return productService.findAllProducts()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @GetMapping("/{ean}")
@@ -51,7 +67,8 @@ public class ProductsController {
                 product.getProductType(),
                 product.getName(),
                 product.getBrand(),
-                product.getDefaultUnit()
+                product.getDefaultUnit(),
+                product.getShelfLifeAfterOpeningDays()
                 );
     }
 }

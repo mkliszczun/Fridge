@@ -9,7 +9,9 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ProductService {
-    Product createProduct(String name, ProductType productType, String ean, Unit defaultUnit);
+    Product createProduct(String name, ProductType productType, String ean, Unit defaultUnit,
+                          Integer shelfLifeAfterOpeningDays);
+    Product updateShelfLifeAfterOpeningDays(UUID id, Integer shelfLifeAfterOpeningDays);
     boolean deleteProduct(UUID id);
 
     Product findProductById(UUID id);

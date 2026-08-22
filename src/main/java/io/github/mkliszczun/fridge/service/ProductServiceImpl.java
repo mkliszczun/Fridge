@@ -31,15 +31,26 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Product createProduct(String name, ProductType productType, String ean, Unit defaultUnit) {
+    public Product createProduct(String name, ProductType productType, String ean, Unit defaultUnit,
+                                 Integer shelfLifeAfterOpeningDays) {
         Product product = new Product();
         product.setName(name);
         product.setProductType(productType);
         product.setEan(ean);
         product.setDefaultUnit(defaultUnit);
+        product.setShelfLifeAfterOpeningDays(shelfLifeAfterOpeningDays);
         Product savedProduct = productRepository.save(product);
 
         return savedProduct;
+    }
+
+    @Override
+    @Transactional
+    public Product updateShelfLifeAfterOpeningDays(UUID id, Integer shelfLifeAfterOpeningDays) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
+        product.setShelfLifeAfterOpeningDays(shelfLifeAfterOpeningDays);
+        return productRepository.save(product);
     }
 
     @Override

@@ -50,6 +50,7 @@ class ProductServiceImplTest {
         sampleProduct.setProductType(ProductType.DAIRY);
         sampleProduct.setEan("5901234567890");
         sampleProduct.setDefaultUnit(Unit.MILLILITER);
+        sampleProduct.setShelfLifeAfterOpeningDays(3);
     }
 
     @Test
@@ -60,6 +61,7 @@ class ProductServiceImplTest {
         saved.setProductType(sampleProduct.getProductType());
         saved.setEan(sampleProduct.getEan());
         saved.setDefaultUnit(sampleProduct.getDefaultUnit());
+        saved.setShelfLifeAfterOpeningDays(sampleProduct.getShelfLifeAfterOpeningDays());
         given(productRepository.save(Mockito.any(Product.class))).willReturn(saved);
 
         // when
@@ -67,7 +69,8 @@ class ProductServiceImplTest {
                 sampleProduct.getName(),
                 sampleProduct.getProductType(),
                 sampleProduct.getEan(),
-                sampleProduct.getDefaultUnit()
+                sampleProduct.getDefaultUnit(),
+                sampleProduct.getShelfLifeAfterOpeningDays()
         );
 
         // then
@@ -80,6 +83,38 @@ class ProductServiceImplTest {
         Assertions.assertThat(toSave.getProductType()).isEqualTo(ProductType.DAIRY);
         assertThat(toSave.getEan()).isEqualTo("5901234567890");
         Assertions.assertThat(toSave.getDefaultUnit()).isEqualTo(Unit.MILLILITER);
+        assertThat(toSave.getShelfLifeAfterOpeningDays()).isEqualTo(3);
+    }
+
+    @Test
+    void updateShelfLifeAfterOpeningDays_shouldPersistNewValue() {
+        given(productRepository.findById(productId)).willReturn(Optional.of(sampleProduct));
+        given(productRepository.save(sampleProduct)).willReturn(sampleProduct);
+
+        Product result = productService.updateShelfLifeAfterOpeningDays(productId, 7);
+
+        assertThat(result.getShelfLifeAfterOpeningDays()).isEqualTo(7);
+        verify(productRepository).save(sampleProduct);
+    }
+
+    @Test
+    void updateShelfLifeAfterOpeningDays_nullShouldClearOverride() {
+        given(productRepository.findById(productId)).willReturn(Optional.of(sampleProduct));
+        given(productRepository.save(sampleProduct)).willReturn(sampleProduct);
+
+        Product result = productService.updateShelfLifeAfterOpeningDays(productId, null);
+
+        assertThat(result.getShelfLifeAfterOpeningDays()).isNull();
+        verify(productRepository).save(sampleProduct);
+    }
+
+    @Test
+    void updateShelfLifeAfterOpeningDays_missingProductShouldThrow() {
+        given(productRepository.findById(productId)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.updateShelfLifeAfterOpeningDays(productId, 7))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("Product not found");
     }
 
     @Test

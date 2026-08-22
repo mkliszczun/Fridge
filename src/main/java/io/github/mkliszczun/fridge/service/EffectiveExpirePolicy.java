@@ -1,26 +1,52 @@
 package io.github.mkliszczun.fridge.service;
 
+import io.github.mkliszczun.fridge.entity.DefaultExpirationDays;
 import io.github.mkliszczun.fridge.fridge.Product;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.Optional;
 @Component
+@RequiredArgsConstructor
 public class EffectiveExpirePolicy {
+
+    private final DefaultExpirationDaysService defaultExpirationDaysService;
     public LocalDate computeEffectiveExpireAt(LocalDate bestBeforeDate,
                                               LocalDate openDate,
                                               Product product,
                                               String productTypeFallback,
                                               Integer defaultShelfAfterOpenDays) {
-        // 1) If open and 'after open' available start from openDate
-        Integer afterOpen = Optional.ofNullable(product)
-                .map(Product::getShelfLifeAfterOpeningDays)
-                .orElse(defaultShelfAfterOpenDays);
+        Optional<DefaultExpirationDays> typeDefaults = Optional.ofNullable(product)
+                .map(Product::getProductType)
+                .flatMap(defaultExpirationDaysService::getByProductType);
 
-        if (openDate != null && afterOpen != null) {
-            return openDate.plusDays(afterOpen);
+        LocalDate sealedExpireAt = bestBeforeDate;
+        if (sealedExpireAt == null) {
+            sealedExpireAt = typeDefaults
+                    .map(DefaultExpirationDays::getDefaultExpirationDays)
+                    .map(days -> LocalDate.now().plusDays(days))
+                    .orElse(null);
         }
-        // 2) In the other case start from bestBeforeDate - or null
-        return bestBeforeDate;
+
+        if (openDate == null) {
+            return sealedExpireAt;
+        }
+
+        Integer afterOpenDays = Optional.ofNullable(product)
+                .map(Product::getShelfLifeAfterOpeningDays)
+                .orElseGet(() -> typeDefaults
+                        .map(DefaultExpirationDays::getExpirationDaysAfterOpening)
+                        .orElse(defaultShelfAfterOpenDays));
+
+        if (afterOpenDays == null) {
+            return sealedExpireAt;
+        }
+
+        LocalDate openedExpireAt = openDate.plusDays(afterOpenDays);
+        if (sealedExpireAt == null || openedExpireAt.isBefore(sealedExpireAt)) {
+            return openedExpireAt;
+        }
+        return sealedExpireAt;
     }
 }

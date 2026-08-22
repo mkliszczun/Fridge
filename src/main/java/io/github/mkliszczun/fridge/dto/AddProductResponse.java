@@ -5,5 +5,10 @@ import io.github.mkliszczun.fridge.enums.Unit;
 
 import java.util.UUID;
 
-public record AddProductResponse(UUID id, ProductType productType, String name, String brand, Unit defaultUnit) {
+public record AddProductResponse(UUID id,
+                                 ProductType productType,
+                                 String name,
+                                 String brand,
+                                 Unit defaultUnit,
+                                 Integer shelfLifeAfterOpeningDays) {
 }
