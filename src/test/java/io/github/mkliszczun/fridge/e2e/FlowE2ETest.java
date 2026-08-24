@@ -31,7 +31,7 @@ class FlowE2ETest {
     @Autowired ObjectMapper om;
 
     @Test
-    void full_flow_register_login_createFridge_addItem_discard() throws Exception {
+    void full_flow_register_login_createFridge_addItem_use_discard() throws Exception {
         // 1) REGISTER
         var login = "user+" + UUID.randomUUID() + "@test.local";
         var password = "Secret123!";
@@ -70,10 +70,12 @@ class FlowE2ETest {
                                 "name", "Mleko",
                                 "productType", "DAIRY",
                                 "ean", "1234567891234",
-                                "defaultUnit", "MILLILITER"
+                                "defaultUnit", "MILLILITER",
+                                "shelfLifeAfterOpeningDays", 3
                         ))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.shelfLifeAfterOpeningDays").value(3))
                 .andReturn();
         var productId = UUID.fromString(Json.read(productRes.getResponse().getContentAsString()).str("id"));
 
@@ -94,12 +96,24 @@ class FlowE2ETest {
                 .andReturn();
         var itemId = UUID.fromString(Json.read(itemRes.getResponse().getContentAsString()).str("id"));
 
-        // 6) DISCARD
+        // 6) USE PART OF SEALED ITEM
+        var today = java.time.LocalDate.now();
+        mvc.perform(post("/api/fridge-items/{id}/use", itemId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("amountUsed", "100"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(900))
+                .andExpect(jsonPath("$.state").value("OPEN"))
+                .andExpect(jsonPath("$.openDate").value(today.toString()))
+                .andExpect(jsonPath("$.effectiveExpireAt").value(today.plusDays(3).toString()));
+
+        // 7) DISCARD
         mvc.perform(post("/api/fridge-items/{id}/discard", itemId)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
 
-        // 7) GET ITEM
+        // 8) GET ITEM
          mvc.perform(get("/api/fridge-items/item/{id}", itemId)
                  .header("Authorization", "Bearer " + token))
              .andExpect(status().isOk())

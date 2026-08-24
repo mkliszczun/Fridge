@@ -24,6 +24,8 @@ public interface FridgeItemService {
 
     FridgeItem openItem(UUID itemId, UUID currentUserId, LocalDate openDate);
 
+    FridgeItem useItem(UUID itemId, UUID currentUserId, BigDecimal amountUsed);
+
     FridgeItem updateAmount(UUID itemId, UUID currentUserId, BigDecimal newAmount);
 
     void consume(UUID itemId, UUID currentUserId);

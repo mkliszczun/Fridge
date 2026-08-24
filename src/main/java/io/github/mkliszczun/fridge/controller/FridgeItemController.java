@@ -3,6 +3,7 @@ package io.github.mkliszczun.fridge.controller;
 import io.github.mkliszczun.fridge.dto.FridgeItemCreateRequest;
 import io.github.mkliszczun.fridge.dto.FridgeItemResponse;
 import io.github.mkliszczun.fridge.dto.UpdateAmountRequest;
+import io.github.mkliszczun.fridge.dto.UseAmountRequest;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.fridge.FridgeItem;
 import io.github.mkliszczun.fridge.repository.FridgeItemRepository;
@@ -84,6 +85,14 @@ public class FridgeItemController {
                                    @AuthenticationPrincipal AppUserDetails currentUser) {
         var userId = currentUser.getId();
         var updated = itemService.openItem(itemId, userId, openDate);
+        return toResponse(updated);
+    }
+
+    @PostMapping("/{itemId}/use")
+    public FridgeItemResponse use(@PathVariable UUID itemId,
+                                  @Valid @RequestBody UseAmountRequest request,
+                                  @AuthenticationPrincipal AppUserDetails currentUser) {
+        var updated = itemService.useItem(itemId, currentUser.getId(), request.amountUsed());
         return toResponse(updated);
     }
 

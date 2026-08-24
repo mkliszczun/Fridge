@@ -2,6 +2,7 @@ package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.enums.ItemState;
 import io.github.mkliszczun.fridge.enums.Unit;
+import io.github.mkliszczun.fridge.exception.ConflictException;
 import io.github.mkliszczun.fridge.exception.ForbiddenException;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.fridge.Fridge;
@@ -196,6 +197,133 @@ class FridgeItemServiceImplTest {
 
         assertThatThrownBy(() -> service.openItem(itemId, userId, LocalDate.now()))
                 .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void openItem_whenAlreadyOpen_keepsOriginalDates() {
+        LocalDate originalOpenDate = LocalDate.now().minusDays(2);
+        LocalDate originalExpireAt = LocalDate.now().plusDays(2);
+        persistedItem.setState(ItemState.OPEN);
+        persistedItem.setOpenDate(originalOpenDate);
+        persistedItem.setEffectiveExpireAt(originalExpireAt);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+
+        FridgeItem result = service.openItem(itemId, userId, LocalDate.now());
+
+        assertThat(result.getOpenDate()).isEqualTo(originalOpenDate);
+        assertThat(result.getEffectiveExpireAt()).isEqualTo(originalExpireAt);
+        verify(expirePolicy, never()).computeEffectiveExpireAt(any(), any(), any(), any(), any());
+        verify(itemRepository, never()).save(any());
+    }
+
+    @Test
+    void openItem_neverExtendsExistingEffectiveDate() {
+        LocalDate openDate = LocalDate.now();
+        LocalDate originalExpireAt = openDate.plusDays(2);
+        persistedItem.setState(ItemState.SEALED);
+        persistedItem.setEffectiveExpireAt(originalExpireAt);
+        persistedItem.setProduct(product);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+        when(expirePolicy.computeEffectiveExpireAt(null, openDate, product, null, null))
+                .thenReturn(openDate.plusDays(7));
+        when(itemRepository.save(any(FridgeItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        FridgeItem result = service.openItem(itemId, userId, openDate);
+
+        assertThat(result.getEffectiveExpireAt()).isEqualTo(originalExpireAt);
+    }
+
+    @Test
+    void openItem_consumedItem_throwsConflict() {
+        persistedItem.setState(ItemState.CONSUMED);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.openItem(itemId, userId, LocalDate.now()))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    // ---------- useItem ----------
+
+    @Test
+    void useItem_partialAmount_opensSealedItemAndSubtractsUsedAmount() {
+        LocalDate effectiveExpireAt = LocalDate.now().plusDays(3);
+        persistedItem.setState(ItemState.SEALED);
+        persistedItem.setAmount(new BigDecimal("50"));
+        persistedItem.setProduct(product);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+        when(expirePolicy.computeEffectiveExpireAt(eq(null), any(LocalDate.class), eq(product), eq(null), eq(null)))
+                .thenReturn(effectiveExpireAt);
+        when(itemRepository.save(any(FridgeItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        FridgeItem result = service.useItem(itemId, userId, new BigDecimal("10"));
+
+        assertThat(result.getAmount()).isEqualByComparingTo("40");
+        assertThat(result.getState()).isEqualTo(ItemState.OPEN);
+        assertThat(result.getOpenDate()).isEqualTo(LocalDate.now());
+        assertThat(result.getEffectiveExpireAt()).isEqualTo(effectiveExpireAt);
+    }
+
+    @Test
+    void useItem_whenAlreadyOpen_doesNotChangeOpeningDates() {
+        LocalDate originalOpenDate = LocalDate.now().minusDays(1);
+        LocalDate originalExpireAt = LocalDate.now().plusDays(2);
+        persistedItem.setState(ItemState.OPEN);
+        persistedItem.setAmount(new BigDecimal("50"));
+        persistedItem.setOpenDate(originalOpenDate);
+        persistedItem.setEffectiveExpireAt(originalExpireAt);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+        when(itemRepository.save(any(FridgeItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        FridgeItem result = service.useItem(itemId, userId, new BigDecimal("10"));
+
+        assertThat(result.getAmount()).isEqualByComparingTo("40");
+        assertThat(result.getOpenDate()).isEqualTo(originalOpenDate);
+        assertThat(result.getEffectiveExpireAt()).isEqualTo(originalExpireAt);
+        verifyNoInteractions(expirePolicy);
+    }
+
+    @Test
+    void useItem_entireAmount_marksItemConsumed() {
+        persistedItem.setState(ItemState.SEALED);
+        persistedItem.setAmount(new BigDecimal("10"));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+        when(itemRepository.save(any(FridgeItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        FridgeItem result = service.useItem(itemId, userId, new BigDecimal("10"));
+
+        assertThat(result.getAmount()).isEqualByComparingTo("0");
+        assertThat(result.getState()).isEqualTo(ItemState.CONSUMED);
+        assertThat(result.getOpenDate()).isEqualTo(LocalDate.now());
+        assertThat(result.getArchivedAt()).isNotNull();
+    }
+
+    @Test
+    void useItem_moreThanAvailable_throwsConflict() {
+        persistedItem.setAmount(new BigDecimal("10"));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.useItem(itemId, userId, new BigDecimal("11")))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("exceeds");
+        verify(itemRepository, never()).save(any());
+    }
+
+    @Test
+    void useItem_discardedItem_throwsConflict() {
+        persistedItem.setState(ItemState.DISCARDED);
+        persistedItem.setAmount(new BigDecimal("10"));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.useItem(itemId, userId, BigDecimal.ONE))
+                .isInstanceOf(ConflictException.class);
     }
 
     // ---------- updateAmount ----------

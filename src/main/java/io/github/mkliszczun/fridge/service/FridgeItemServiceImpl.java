@@ -2,6 +2,7 @@ package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.enums.ItemState;
 import io.github.mkliszczun.fridge.enums.Unit;
+import io.github.mkliszczun.fridge.exception.ConflictException;
 import io.github.mkliszczun.fridge.exception.ForbiddenException;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.fridge.Fridge;
@@ -92,13 +93,44 @@ public class FridgeItemServiceImpl implements FridgeItemService{
 
         assertMembership(item.getFridge().getId(), currentUserId);
 
-        item.setOpenDate(openDate != null ? openDate : LocalDate.now());
-        item.setState(ItemState.OPEN);
-        var effective = expirePolicy.computeEffectiveExpireAt(
-                item.getBestBeforeDate(), item.getOpenDate(), item.getProduct(), null, null);
-        item.setEffectiveExpireAt(effective);
+        assertActive(item, "opened");
+        if (item.getState() == ItemState.OPEN) {
+            return item;
+        }
 
-        return itemRepository.save(item);    }
+        openSealedItem(item, openDate != null ? openDate : LocalDate.now());
+
+        return itemRepository.save(item);
+    }
+
+    @Override
+    @Transactional
+    public FridgeItem useItem(UUID itemId, UUID currentUserId, BigDecimal amountUsed) {
+        FridgeItem item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new NotFoundException("Item not found"));
+        assertMembership(item.getFridge().getId(), currentUserId);
+        assertActive(item, "used");
+
+        if (amountUsed == null || amountUsed.signum() <= 0) {
+            throw new ConflictException("Amount used must be greater than zero");
+        }
+        if (amountUsed.compareTo(item.getAmount()) > 0) {
+            throw new ConflictException("Amount used exceeds available amount");
+        }
+
+        if (item.getState() == ItemState.SEALED) {
+            openSealedItem(item, LocalDate.now());
+        }
+
+        BigDecimal remainingAmount = item.getAmount().subtract(amountUsed);
+        item.setAmount(remainingAmount);
+        if (remainingAmount.signum() == 0) {
+            item.setState(ItemState.CONSUMED);
+            item.setArchivedAt(OffsetDateTime.now());
+        }
+
+        return itemRepository.save(item);
+    }
 
     @Override
     @Transactional
@@ -144,5 +176,26 @@ public class FridgeItemServiceImpl implements FridgeItemService{
             return itemRepository.findExpiringBetween(fridgeId, today, to);
         }
         return itemRepository.findActiveByFridge(fridgeId);
+    }
+
+    private void openSealedItem(FridgeItem item, LocalDate openDate) {
+        LocalDate previousEffectiveExpireAt = item.getEffectiveExpireAt();
+        item.setOpenDate(openDate);
+        item.setState(ItemState.OPEN);
+
+        LocalDate recalculatedExpireAt = expirePolicy.computeEffectiveExpireAt(
+                item.getBestBeforeDate(), openDate, item.getProduct(), null, null);
+        if (previousEffectiveExpireAt != null
+                && (recalculatedExpireAt == null
+                || previousEffectiveExpireAt.isBefore(recalculatedExpireAt))) {
+            recalculatedExpireAt = previousEffectiveExpireAt;
+        }
+        item.setEffectiveExpireAt(recalculatedExpireAt);
+    }
+
+    private void assertActive(FridgeItem item, String action) {
+        if (item.getState() == ItemState.CONSUMED || item.getState() == ItemState.DISCARDED) {
+            throw new ConflictException("Archived item cannot be " + action);
+        }
     }
 }
