@@ -38,7 +38,6 @@ public class ResponseLoggingFilter extends OncePerRequestFilter {
 
             boolean hasAuthHeader = request.getHeader("Authorization") != null;
 
-            // ⬇︎ 5 placeholderów i dokładnie 5 argumentów
             log.info("API {} {} -> {} | principal={} | authHeader={}",
                     request.getMethod(),
                     request.getRequestURI(),
