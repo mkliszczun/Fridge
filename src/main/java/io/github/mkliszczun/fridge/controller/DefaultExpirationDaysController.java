@@ -2,7 +2,6 @@ package io.github.mkliszczun.fridge.controller;
 
 import io.github.mkliszczun.fridge.dto.DefaultExpirationResponse;
 import io.github.mkliszczun.fridge.dto.DefaultExpirationUpdateRequest;
-import io.github.mkliszczun.fridge.entity.DefaultExpirationDays;
 import io.github.mkliszczun.fridge.enums.ProductType;
 import io.github.mkliszczun.fridge.service.DefaultExpirationDaysService;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +14,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/expiration")
 @RequiredArgsConstructor
-public class DefultExpirationDaysController {
+public class DefaultExpirationDaysController {
 
     private final DefaultExpirationDaysService service;
     @GetMapping
@@ -62,15 +61,6 @@ public class DefultExpirationDaysController {
         }
         validateNonNegative(days, "expirationDaysAfterOpening");
         service.updateDaysAfterOpeningForType(productType, days);
-    }
-
-
-    private DefaultExpirationResponse toResponse(DefaultExpirationDays entity) {
-        return new DefaultExpirationResponse(
-                entity.getProductType(),
-                entity.getDefaultExpirationDays(),
-                entity.getExpirationDaysAfterOpening()
-        );
     }
 
     private void validateNonNegative(Integer value, String fieldName) {

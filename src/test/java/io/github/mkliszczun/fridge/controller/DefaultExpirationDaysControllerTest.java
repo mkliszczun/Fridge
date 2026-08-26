@@ -27,9 +27,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = DefultExpirationDaysController.class)
+@WebMvcTest(controllers = DefaultExpirationDaysController.class)
 @AutoConfigureMockMvc(addFilters = false)
-class DefultExpirationDaysControllerTest {
+class DefaultExpirationDaysControllerTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper om;
