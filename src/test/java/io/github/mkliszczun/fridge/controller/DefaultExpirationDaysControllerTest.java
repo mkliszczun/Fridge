@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,6 +38,7 @@ class DefaultExpirationDaysControllerTest {
     @MockitoBean DefaultExpirationDaysService service;
     @MockitoBean JwtUtil jwtUtil;
     @MockitoBean JpaUserDetailsService userDetailsService;
+    @MockitoBean(name = "jpaMappingContext") JpaMetamodelMappingContext jpaMappingContext;
 
     @Test
     void getExpirationDays_returnsConfiguredDefaults() throws Exception {

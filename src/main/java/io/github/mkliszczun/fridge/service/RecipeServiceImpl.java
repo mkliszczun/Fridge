@@ -2,9 +2,11 @@ package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.dto.RecipeIngredientRequest;
 import io.github.mkliszczun.fridge.dto.RecipeRequest;
+import io.github.mkliszczun.fridge.exception.ConflictException;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.recipe.Recipe;
 import io.github.mkliszczun.fridge.recipe.RecipeIngredient;
+import io.github.mkliszczun.fridge.repository.PlannedMealRepository;
 import io.github.mkliszczun.fridge.repository.RecipeRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -17,9 +19,11 @@ import java.util.UUID;
 public class RecipeServiceImpl implements RecipeService {
 
     private final RecipeRepository repository;
+    private final PlannedMealRepository plannedMealRepository;
 
-    public RecipeServiceImpl(RecipeRepository repository) {
+    public RecipeServiceImpl(RecipeRepository repository, PlannedMealRepository plannedMealRepository) {
         this.repository = repository;
+        this.plannedMealRepository = plannedMealRepository;
     }
 
     @Override
@@ -52,7 +56,11 @@ public class RecipeServiceImpl implements RecipeService {
     @Override
     @Transactional
     public void delete(UUID recipeId, UUID ownerUserId) {
-        repository.delete(findOwnedRecipe(recipeId, ownerUserId));
+        Recipe recipe = findOwnedRecipe(recipeId, ownerUserId);
+        if (plannedMealRepository.existsByRecipeId(recipeId)) {
+            throw new ConflictException("Recipe is used in a planned meal");
+        }
+        repository.delete(recipe);
     }
 
     private Recipe findOwnedRecipe(UUID recipeId, UUID ownerUserId) {
