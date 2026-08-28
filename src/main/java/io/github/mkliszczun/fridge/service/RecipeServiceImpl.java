@@ -2,7 +2,6 @@ package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.dto.RecipeIngredientRequest;
 import io.github.mkliszczun.fridge.dto.RecipeRequest;
-import io.github.mkliszczun.fridge.exception.ConflictException;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.recipe.Recipe;
 import io.github.mkliszczun.fridge.recipe.RecipeIngredient;
@@ -57,9 +56,7 @@ public class RecipeServiceImpl implements RecipeService {
     @Transactional
     public void delete(UUID recipeId, UUID ownerUserId) {
         Recipe recipe = findOwnedRecipe(recipeId, ownerUserId);
-        if (plannedMealRepository.existsByRecipeId(recipeId)) {
-            throw new ConflictException("Recipe is used in a planned meal");
-        }
+        plannedMealRepository.clearSourceRecipe(recipeId);
         repository.delete(recipe);
     }
 

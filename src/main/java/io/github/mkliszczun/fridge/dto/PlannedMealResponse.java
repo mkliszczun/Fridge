@@ -7,7 +7,7 @@ import java.util.UUID;
 public record PlannedMealResponse(
         UUID id,
         UUID fridgeId,
-        RecipeResponse recipe,
+        PlannedRecipeResponse recipe,
         LocalDate plannedDate,
         Integer servings,
         UUID createdByUserId,

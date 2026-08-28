@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -69,7 +70,7 @@ class PlannedMealFlowE2ETest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.fridgeId").value(fridgeId.toString()))
-                .andExpect(jsonPath("$.recipe.id").value(recipeId.toString()))
+                .andExpect(jsonPath("$.recipe.sourceRecipeId").value(recipeId.toString()))
                 .andExpect(jsonPath("$.recipe.name").value("Carbonara"))
                 .andExpect(jsonPath("$.recipe.ingredients[0].name").value("Makaron"))
                 .andExpect(jsonPath("$.plannedDate").value(plannedDate.toString()))
@@ -81,6 +82,67 @@ class PlannedMealFlowE2ETest {
 
         UUID plannedMealId = UUID.fromString(
                 read(createResult.getResponse().getContentAsString()).get("id").asText());
+        UUID ingredientId = UUID.fromString(
+                read(createResult.getResponse().getContentAsString())
+                        .get("recipe").get("ingredients").get(0).get("id").asText());
+        UUID secondIngredientId = UUID.fromString(
+                read(createResult.getResponse().getContentAsString())
+                        .get("recipe").get("ingredients").get(1).get("id").asText());
+        UUID fridgeItemId = createFridgeItem(owner.token(), fridgeId);
+
+        var reservationResult = mvc.perform(post(
+                        "/api/fridges/{fridgeId}/planned-meals/{plannedMealId}/reservations",
+                        fridgeId, plannedMealId)
+                        .header("Authorization", "Bearer " + member.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(reservationRequest(ingredientId, fridgeItemId, 200))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.plannedMealIngredientId").value(ingredientId.toString()))
+                .andExpect(jsonPath("$.fridgeItemId").value(fridgeItemId.toString()))
+                .andExpect(jsonPath("$.itemName").value("Makaron w szafce"))
+                .andExpect(jsonPath("$.amount").value(200))
+                .andExpect(jsonPath("$.unit").value("GRAM"))
+                .andReturn();
+        UUID reservationId = UUID.fromString(
+                read(reservationResult.getResponse().getContentAsString()).get("id").asText());
+
+        mvc.perform(put(
+                        "/api/fridges/{fridgeId}/planned-meals/{plannedMealId}/reservations/{reservationId}",
+                        fridgeId, plannedMealId, reservationId)
+                        .header("Authorization", "Bearer " + member.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("amount", 250))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(250));
+
+        mvc.perform(post(
+                        "/api/fridges/{fridgeId}/planned-meals/{plannedMealId}/reservations",
+                        fridgeId, plannedMealId)
+                        .header("Authorization", "Bearer " + member.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(reservationRequest(secondIngredientId, fridgeItemId, 251))))
+                .andExpect(status().isConflict());
+
+        mvc.perform(put(
+                        "/api/fridges/{fridgeId}/planned-meals/{plannedMealId}/reservations/{reservationId}",
+                        fridgeId, plannedMealId, reservationId)
+                        .header("Authorization", "Bearer " + member.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("amount", 501))))
+                .andExpect(status().isConflict());
+
+        mvc.perform(get("/api/fridges/{fridgeId}/planned-meals/{plannedMealId}", fridgeId, plannedMealId)
+                        .header("Authorization", "Bearer " + member.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recipe.ingredients[0].reservations[0].id")
+                        .value(reservationId.toString()))
+                .andExpect(jsonPath("$.recipe.ingredients[0].reservations[0].amount").value(250));
+
+        mvc.perform(delete(
+                        "/api/fridges/{fridgeId}/planned-meals/{plannedMealId}/reservations/{reservationId}",
+                        fridgeId, plannedMealId, reservationId)
+                        .header("Authorization", "Bearer " + outsider.token()))
+                .andExpect(status().isForbidden());
 
         mvc.perform(post("/api/fridges/{fridgeId}/planned-meals", fridgeId)
                         .header("Authorization", "Bearer " + member.token())
@@ -103,7 +165,7 @@ class PlannedMealFlowE2ETest {
         mvc.perform(put("/api/fridges/{fridgeId}/planned-meals/{plannedMealId}", fridgeId, plannedMealId)
                         .header("Authorization", "Bearer " + member.token())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(plannedMealRequest(recipeId, changedDate, 4))))
+                        .content(json(plannedMealUpdateRequest(changedDate, 4))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.plannedDate").value(changedDate.toString()))
                 .andExpect(jsonPath("$.servings").value(4));
@@ -112,17 +174,48 @@ class PlannedMealFlowE2ETest {
                         .header("Authorization", "Bearer " + outsider.token()))
                 .andExpect(status().isForbidden());
 
+        mvc.perform(put("/api/recipes/{recipeId}", recipeId)
+                        .header("Authorization", "Bearer " + owner.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(updatedRecipeRequest())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Carbonara po zmianie"));
+
+        mvc.perform(get("/api/fridges/{fridgeId}/planned-meals/{plannedMealId}", fridgeId, plannedMealId)
+                        .header("Authorization", "Bearer " + member.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recipe.name").value("Carbonara"))
+                .andExpect(jsonPath("$.recipe.ingredients[0].name").value("Makaron"));
+
         mvc.perform(delete("/api/recipes/{recipeId}", recipeId)
                         .header("Authorization", "Bearer " + owner.token()))
-                .andExpect(status().isConflict());
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/fridges/{fridgeId}/planned-meals/{plannedMealId}", fridgeId, plannedMealId)
+                        .header("Authorization", "Bearer " + member.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recipe.sourceRecipeId").value(nullValue()))
+                .andExpect(jsonPath("$.recipe.name").value("Carbonara"))
+                .andExpect(jsonPath("$.recipe.instructions").value("Ugotuj makaron."))
+                .andExpect(jsonPath("$.recipe.ingredients[0].name").value("Makaron"))
+                .andExpect(jsonPath("$.recipe.ingredients[0].reservations[0].id")
+                        .value(reservationId.toString()));
+
+        mvc.perform(delete(
+                        "/api/fridges/{fridgeId}/planned-meals/{plannedMealId}/reservations/{reservationId}",
+                        fridgeId, plannedMealId, reservationId)
+                        .header("Authorization", "Bearer " + member.token()))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/fridges/{fridgeId}/planned-meals/{plannedMealId}", fridgeId, plannedMealId)
+                        .header("Authorization", "Bearer " + member.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recipe.ingredients[0].reservations").isEmpty());
 
         mvc.perform(delete("/api/fridges/{fridgeId}/planned-meals/{plannedMealId}", fridgeId, plannedMealId)
                         .header("Authorization", "Bearer " + member.token()))
                 .andExpect(status().isNoContent());
 
-        mvc.perform(delete("/api/recipes/{recipeId}", recipeId)
-                        .header("Authorization", "Bearer " + owner.token()))
-                .andExpect(status().isNoContent());
     }
 
     private UserSession register() throws Exception {
@@ -154,17 +247,40 @@ class PlannedMealFlowE2ETest {
                 "description", "Klasyczny makaron",
                 "instructions", "Ugotuj makaron.",
                 "servings", 2,
-                "ingredients", List.of(Map.of(
-                        "name", "Makaron",
-                        "amount", 200,
-                        "unit", "g",
-                        "optional", false
-                ))
+                "ingredients", List.of(
+                        Map.of(
+                                "name", "Makaron",
+                                "amount", 200,
+                                "unit", "g",
+                                "optional", false
+                        ),
+                        Map.of(
+                                "name", "Ser",
+                                "amount", 50,
+                                "unit", "g",
+                                "optional", false
+                        )
+                )
         );
         var result = mvc.perform(post("/api/recipes")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(request)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return UUID.fromString(read(result.getResponse().getContentAsString()).get("id").asText());
+    }
+
+    private UUID createFridgeItem(String token, UUID fridgeId) throws Exception {
+        var result = mvc.perform(post("/api/fridge-items")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "fridgeId", fridgeId.toString(),
+                                "customName", "Makaron w szafce",
+                                "amount", 500,
+                                "unit", "GRAM"
+                        ))))
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(read(result.getResponse().getContentAsString()).get("id").asText());
@@ -184,6 +300,36 @@ class PlannedMealFlowE2ETest {
                 "recipeId", recipeId.toString(),
                 "plannedDate", date.toString(),
                 "servings", servings
+        );
+    }
+
+    private Map<String, Object> plannedMealUpdateRequest(LocalDate date, int servings) {
+        return Map.of(
+                "plannedDate", date.toString(),
+                "servings", servings
+        );
+    }
+
+    private Map<String, Object> reservationRequest(UUID ingredientId, UUID fridgeItemId, int amount) {
+        return Map.of(
+                "plannedMealIngredientId", ingredientId.toString(),
+                "fridgeItemId", fridgeItemId.toString(),
+                "amount", amount
+        );
+    }
+
+    private Map<String, Object> updatedRecipeRequest() {
+        return Map.of(
+                "name", "Carbonara po zmianie",
+                "description", "Zmieniony przepis",
+                "instructions", "Nowe instrukcje.",
+                "servings", 3,
+                "ingredients", List.of(Map.of(
+                        "name", "Spaghetti",
+                        "amount", 300,
+                        "unit", "g",
+                        "optional", false
+                ))
         );
     }
 

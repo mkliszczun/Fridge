@@ -2,7 +2,6 @@ package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.dto.RecipeIngredientRequest;
 import io.github.mkliszczun.fridge.dto.RecipeRequest;
-import io.github.mkliszczun.fridge.exception.ConflictException;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.recipe.Recipe;
 import io.github.mkliszczun.fridge.recipe.RecipeIngredient;
@@ -115,6 +114,7 @@ class RecipeServiceImplTest {
 
         service.delete(recipeId, ownerId);
 
+        verify(plannedMealRepository).clearSourceRecipe(recipeId);
         verify(repository).delete(recipe);
     }
 
@@ -126,20 +126,7 @@ class RecipeServiceImplTest {
 
         assertThatThrownBy(() -> service.delete(recipeId, ownerId))
                 .isInstanceOf(NotFoundException.class);
-        verify(repository, never()).delete(any());
-    }
-
-    @Test
-    void delete_plannedRecipeThrowsConflict() {
-        UUID recipeId = UUID.randomUUID();
-        UUID ownerId = UUID.randomUUID();
-        Recipe recipe = new Recipe();
-        when(repository.findByIdAndOwnerUserId(recipeId, ownerId)).thenReturn(Optional.of(recipe));
-        when(plannedMealRepository.existsByRecipeId(recipeId)).thenReturn(true);
-
-        assertThatThrownBy(() -> service.delete(recipeId, ownerId))
-                .isInstanceOf(ConflictException.class)
-                .hasMessage("Recipe is used in a planned meal");
+        verify(plannedMealRepository, never()).clearSourceRecipe(any());
         verify(repository, never()).delete(any());
     }
 
