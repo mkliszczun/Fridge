@@ -63,6 +63,8 @@ class RecipeFlowE2ETest {
                 .andExpect(jsonPath("$.ingredients[0].name").value("Makaron"))
                 .andExpect(jsonPath("$.ingredients[0].amount").value(200))
                 .andExpect(jsonPath("$.ingredients[0].unit").value("g"))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.updatedAt").isNotEmpty())
                 .andReturn();
 
         UUID recipeId = UUID.fromString(read(createResult.getResponse().getContentAsString()).get("id").asText());
