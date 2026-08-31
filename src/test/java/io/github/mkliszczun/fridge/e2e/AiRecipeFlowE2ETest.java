@@ -2,12 +2,13 @@ package io.github.mkliszczun.fridge.e2e;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.mkliszczun.fridge.dto.AiRecipeGenerateRequest;
 import io.github.mkliszczun.fridge.dto.RecipeIngredientRequest;
 import io.github.mkliszczun.fridge.dto.RecipeRequest;
-import io.github.mkliszczun.fridge.repository.PlannedMealRepository;
 import io.github.mkliszczun.fridge.repository.RecipeRepository;
 import io.github.mkliszczun.fridge.service.OpenAiRecipeClient;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -19,7 +20,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureTestDatabase(replace = Replace.ANY)
 @DirtiesContext
 @ActiveProfiles("test")
-class AiMealPlanFlowE2ETest {
+class AiRecipeFlowE2ETest {
 
     @Autowired
     private MockMvc mvc;
@@ -51,49 +51,45 @@ class AiMealPlanFlowE2ETest {
     @Autowired
     private RecipeRepository recipeRepository;
 
-    @Autowired
-    private PlannedMealRepository plannedMealRepository;
-
     @MockitoBean
     private OpenAiRecipeClient openAiClient;
 
     @Test
-    void memberCanGenerateProposalWithoutSavingRecipeOrPlannedMeal() throws Exception {
-        String ownerToken = register();
-        String outsiderToken = register();
-        UUID fridgeId = createFridge(ownerToken);
-        LocalDate plannedDate = LocalDate.now().plusDays(1);
+    void authenticatedUserCanGenerateRecipeWithGuidelinesWithoutSavingIt() throws Exception {
+        String token = register();
         when(openAiClient.generate(
                 any(),
                 nullable(RecipeRequest.class),
                 nullable(String.class)
         )).thenReturn(recipe());
 
-        mvc.perform(post("/api/fridges/{fridgeId}/ai/meal-plans/generate", fridgeId)
-                        .header("Authorization", "Bearer " + ownerToken)
+        mvc.perform(post("/api/ai/recipes/generate")
+                        .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of(
-                                "plannedDate", plannedDate.toString(),
-                                "servings", 2
+                                "servings", 2,
+                                "guidelines", "Bez mięsa, szybkie, dużo białka"
                         ))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.fridgeId").value(fridgeId.toString()))
-                .andExpect(jsonPath("$.plannedDate").value(plannedDate.toString()))
-                .andExpect(jsonPath("$.recipe.name").value("Makaron z pesto"))
-                .andExpect(jsonPath("$.recipe.servings").value(2))
-                .andExpect(jsonPath("$.recipe.ingredients[0].name").value("Makaron"));
+                .andExpect(jsonPath("$.name").value("Makaron z pesto"))
+                .andExpect(jsonPath("$.servings").value(2))
+                .andExpect(jsonPath("$.ingredients[0].name").value("Makaron"));
 
         assertThat(recipeRepository.count()).isZero();
-        assertThat(plannedMealRepository.count()).isZero();
+        ArgumentCaptor<AiRecipeGenerateRequest> requestCaptor =
+                ArgumentCaptor.forClass(AiRecipeGenerateRequest.class);
+        verify(openAiClient).generate(
+                requestCaptor.capture(),
+                nullable(RecipeRequest.class),
+                nullable(String.class)
+        );
+        assertThat(requestCaptor.getValue().guidelines())
+                .isEqualTo("Bez mięsa, szybkie, dużo białka");
 
-        mvc.perform(post("/api/fridges/{fridgeId}/ai/meal-plans/generate", fridgeId)
-                        .header("Authorization", "Bearer " + outsiderToken)
+        mvc.perform(post("/api/ai/recipes/generate")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of(
-                                "plannedDate", plannedDate.toString(),
-                                "servings", 2
-                        ))))
-                .andExpect(status().isForbidden());
+                        .content(json(Map.of("servings", 2))))
+                .andExpect(status().isUnauthorized());
 
         verify(openAiClient, times(1)).generate(
                 any(),
@@ -103,23 +99,13 @@ class AiMealPlanFlowE2ETest {
     }
 
     private String register() throws Exception {
-        String login = "ai-meal-plan+" + UUID.randomUUID() + "@test.local";
+        String login = "ai-recipe+" + UUID.randomUUID() + "@test.local";
         var result = mvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("login", login, "password", "Secret123!"))))
                 .andExpect(status().isCreated())
                 .andReturn();
         return read(result.getResponse().getContentAsString()).get("token").asText();
-    }
-
-    private UUID createFridge(String token) throws Exception {
-        var result = mvc.perform(post("/api/fridges")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("name", "Dom"))))
-                .andExpect(status().isCreated())
-                .andReturn();
-        return UUID.fromString(read(result.getResponse().getContentAsString()).get("id").asText());
     }
 
     private RecipeRequest recipe() {

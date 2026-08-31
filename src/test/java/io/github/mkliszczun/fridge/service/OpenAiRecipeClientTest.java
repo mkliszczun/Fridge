@@ -2,7 +2,7 @@ package io.github.mkliszczun.fridge.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mkliszczun.fridge.config.OpenAiProperties;
-import io.github.mkliszczun.fridge.dto.AiMealPlanGenerateRequest;
+import io.github.mkliszczun.fridge.dto.AiRecipeGenerateRequest;
 import io.github.mkliszczun.fridge.dto.RecipeIngredientRequest;
 import io.github.mkliszczun.fridge.dto.RecipeRequest;
 import io.github.mkliszczun.fridge.exception.AiServiceUnavailableException;
@@ -13,22 +13,21 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.ExpectedCount.once;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
-import static org.springframework.http.HttpMethod.POST;
 
-class OpenAiMealPlanClientTest {
+class OpenAiRecipeClientTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -37,7 +36,7 @@ class OpenAiMealPlanClientTest {
         OpenAiProperties properties = properties("test-key");
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        OpenAiMealPlanClient client = new OpenAiMealPlanClient(builder, properties, objectMapper);
+        OpenAiRecipeClient client = new OpenAiRecipeClient(builder, properties, objectMapper);
         RecipeRequest expectedRecipe = recipe();
         String response = objectMapper.writeValueAsString(Map.of(
                 "output_text", objectMapper.writeValueAsString(expectedRecipe)
@@ -48,10 +47,10 @@ class OpenAiMealPlanClientTest {
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-key"))
                 .andExpect(content().string(containsString("\"model\":\"gpt-5.6-luna\"")))
                 .andExpect(content().string(containsString("\"type\":\"json_schema\"")))
-                .andExpect(content().string(containsString("Brak dodatkowych preferencji")))
+                .andExpect(content().string(containsString("Brak dodatkowych wytycznych")))
                 .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
 
-        RecipeRequest result = client.generate(request());
+        RecipeRequest result = client.generate(request(null), null, null);
 
         assertThat(result).isEqualTo(expectedRecipe);
         server.verify();
@@ -60,39 +59,38 @@ class OpenAiMealPlanClientTest {
     @Test
     void generate_withoutApiKeyFailsBeforeCallingProvider() {
         OpenAiProperties properties = properties("");
-        OpenAiMealPlanClient client = new OpenAiMealPlanClient(
+        OpenAiRecipeClient client = new OpenAiRecipeClient(
                 RestClient.builder(), properties, objectMapper);
 
-        assertThatThrownBy(() -> client.generate(request()))
+        assertThatThrownBy(() -> client.generate(request(null), null, null))
                 .isInstanceOf(AiServiceUnavailableException.class)
                 .hasMessage("AI service is not configured");
     }
 
     @Test
-    void generate_includesPreviousProposalAndAdditionalFeedback() throws Exception {
+    void generate_includesGuidelinesPreviousProposalAndFeedback() throws Exception {
         OpenAiProperties properties = properties("test-key");
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        OpenAiMealPlanClient client = new OpenAiMealPlanClient(builder, properties, objectMapper);
+        OpenAiRecipeClient client = new OpenAiRecipeClient(builder, properties, objectMapper);
         RecipeRequest previousProposal = recipe();
-        AiMealPlanGenerateRequest request = new AiMealPlanGenerateRequest(
-                LocalDate.now().plusDays(1),
-                2,
-                "Szybki obiad",
-                previousProposal,
-                "Nie lubię pomidorów, zrób coś lżejszego"
-        );
         String response = objectMapper.writeValueAsString(Map.of(
                 "output_text", objectMapper.writeValueAsString(previousProposal)
         ));
 
         server.expect(once(), requestTo("https://api.openai.com/v1/responses"))
-                .andExpect(content().string(containsString("Zaproponuj inne danie")))
+                .andExpect(content().string(containsString("Wytyczne użytkownika")))
+                .andExpect(content().string(containsString("Szybki obiad")))
+                .andExpect(content().string(containsString("Zaproponuj inny przepis")))
                 .andExpect(content().string(containsString("Makaron z pesto")))
                 .andExpect(content().string(containsString("Nie lubię pomidorów")))
                 .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
 
-        client.generate(request);
+        client.generate(
+                request("Szybki obiad"),
+                previousProposal,
+                "Nie lubię pomidorów, zrób coś lżejszego"
+        );
 
         server.verify();
     }
@@ -103,14 +101,8 @@ class OpenAiMealPlanClientTest {
         return properties;
     }
 
-    private AiMealPlanGenerateRequest request() {
-        return new AiMealPlanGenerateRequest(
-                LocalDate.now().plusDays(1),
-                2,
-                null,
-                null,
-                null
-        );
+    private AiRecipeGenerateRequest request(String guidelines) {
+        return new AiRecipeGenerateRequest(2, guidelines);
     }
 
     private RecipeRequest recipe() {

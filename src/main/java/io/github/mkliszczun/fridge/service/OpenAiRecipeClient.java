@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mkliszczun.fridge.config.OpenAiProperties;
-import io.github.mkliszczun.fridge.dto.AiMealPlanGenerateRequest;
+import io.github.mkliszczun.fridge.dto.AiRecipeGenerateRequest;
 import io.github.mkliszczun.fridge.dto.RecipeRequest;
 import io.github.mkliszczun.fridge.exception.AiServiceUnavailableException;
 import io.github.mkliszczun.fridge.exception.InvalidAiResponseException;
@@ -20,10 +20,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
-public class OpenAiMealPlanClient {
+public class OpenAiRecipeClient {
 
     private static final String INSTRUCTIONS = """
-            Jesteś modułem aplikacji Fridge generującym dokładnie jeden przepis na jeden posiłek.
+            Jesteś modułem aplikacji Fridge generującym dokładnie jeden przepis.
             Zwracaj wyłącznie dane zgodne z przekazanym JSON Schema i zawsze pisz po polsku.
             Przepis ma być realistyczny, wykonalny w domu i przeznaczony dokładnie dla wskazanej liczby porcji.
             Nie zakładaj znajomości zawartości lodówki ani produktów użytkownika.
@@ -68,9 +68,9 @@ public class OpenAiMealPlanClient {
     private final ObjectMapper objectMapper;
     private final JsonNode recipeSchema;
 
-    public OpenAiMealPlanClient(RestClient.Builder builder,
-                                OpenAiProperties properties,
-                                ObjectMapper objectMapper) {
+    public OpenAiRecipeClient(RestClient.Builder builder,
+                              OpenAiProperties properties,
+                              ObjectMapper objectMapper) {
         this.restClient = builder.baseUrl(properties.getBaseUrl()).build();
         this.properties = properties;
         this.objectMapper = objectMapper;
@@ -81,7 +81,9 @@ public class OpenAiMealPlanClient {
         }
     }
 
-    public RecipeRequest generate(AiMealPlanGenerateRequest request) {
+    public RecipeRequest generate(AiRecipeGenerateRequest request,
+                                  RecipeRequest previousProposal,
+                                  String feedback) {
         if (!StringUtils.hasText(properties.getApiKey())) {
             throw new AiServiceUnavailableException("AI service is not configured");
         }
@@ -91,7 +93,7 @@ public class OpenAiMealPlanClient {
                     .uri("/responses")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(createPayload(request))
+                    .body(createPayload(request, previousProposal, feedback))
                     .retrieve()
                     .body(JsonNode.class);
             return parseRecipe(response);
@@ -100,10 +102,12 @@ public class OpenAiMealPlanClient {
         }
     }
 
-    private Map<String, Object> createPayload(AiMealPlanGenerateRequest request) {
+    private Map<String, Object> createPayload(AiRecipeGenerateRequest request,
+                                              RecipeRequest previousProposal,
+                                              String feedback) {
         Map<String, Object> format = new LinkedHashMap<>();
         format.put("type", "json_schema");
-        format.put("name", "meal_plan_recipe");
+        format.put("name", "recipe");
         format.put("strict", true);
         format.put("schema", recipeSchema);
 
@@ -114,7 +118,7 @@ public class OpenAiMealPlanClient {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", properties.getModel());
         payload.put("instructions", INSTRUCTIONS);
-        payload.put("input", createInput(request));
+        payload.put("input", createInput(request, previousProposal, feedback));
         payload.put("reasoning", Map.of("effort", "low"));
         payload.put("text", text);
         payload.put("max_output_tokens", 4000);
@@ -122,26 +126,28 @@ public class OpenAiMealPlanClient {
         return payload;
     }
 
-    private String createInput(AiMealPlanGenerateRequest request) {
+    private String createInput(AiRecipeGenerateRequest request,
+                               RecipeRequest previousProposal,
+                               String feedback) {
         StringBuilder input = new StringBuilder()
-                .append("Wygeneruj jeden posiłek dla ")
+                .append("Wygeneruj jeden przepis dla ")
                 .append(request.servings())
                 .append(" porcji.\n");
 
-        if (StringUtils.hasText(request.prompt())) {
-            input.append("Preferencje użytkownika: ").append(request.prompt().trim()).append("\n");
+        if (StringUtils.hasText(request.guidelines())) {
+            input.append("Wytyczne użytkownika: ").append(request.guidelines().trim()).append("\n");
         } else {
-            input.append("Brak dodatkowych preferencji. Wybierz popularny i wykonalny posiłek.\n");
+            input.append("Brak dodatkowych wytycznych. Wybierz popularny i wykonalny przepis.\n");
         }
 
-        if (request.previousProposal() != null) {
-            input.append("Zaproponuj inne danie niż poprzednio. Poprzednia propozycja: ")
-                    .append(toJson(request.previousProposal()))
+        if (previousProposal != null) {
+            input.append("Zaproponuj inny przepis niż poprzednio. Poprzednia propozycja: ")
+                    .append(toJson(previousProposal))
                     .append("\n");
         }
-        if (StringUtils.hasText(request.feedback())) {
+        if (StringUtils.hasText(feedback)) {
             input.append("Dodatkowa uwaga do nowej propozycji: ")
-                    .append(request.feedback().trim())
+                    .append(feedback.trim())
                     .append("\n");
         }
         return input.toString();
