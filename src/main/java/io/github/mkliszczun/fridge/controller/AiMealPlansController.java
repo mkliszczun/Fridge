@@ -1,8 +1,11 @@
 package io.github.mkliszczun.fridge.controller;
 
 import io.github.mkliszczun.fridge.dto.AiMealPlanGenerateRequest;
+import io.github.mkliszczun.fridge.dto.AiMealPlanFromRecipesGenerateRequest;
+import io.github.mkliszczun.fridge.dto.AiMealPlanFromRecipesProposalResponse;
 import io.github.mkliszczun.fridge.dto.AiMealPlanProposalResponse;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
+import io.github.mkliszczun.fridge.service.AiMealPlanFromRecipesService;
 import io.github.mkliszczun.fridge.service.AiMealPlanService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,9 +22,12 @@ import java.util.UUID;
 public class AiMealPlansController {
 
     private final AiMealPlanService service;
+    private final AiMealPlanFromRecipesService fromRecipesService;
 
-    public AiMealPlansController(AiMealPlanService service) {
+    public AiMealPlansController(AiMealPlanService service,
+                                 AiMealPlanFromRecipesService fromRecipesService) {
         this.service = service;
+        this.fromRecipesService = fromRecipesService;
     }
 
     @PostMapping("/generate")
@@ -29,5 +35,13 @@ public class AiMealPlansController {
                                                @Valid @RequestBody AiMealPlanGenerateRequest request,
                                                @AuthenticationPrincipal AppUserDetails user) {
         return service.generate(fridgeId, user.getId(), request);
+    }
+
+    @PostMapping("/generate-from-recipes")
+    public AiMealPlanFromRecipesProposalResponse generateFromRecipes(
+            @PathVariable UUID fridgeId,
+            @Valid @RequestBody AiMealPlanFromRecipesGenerateRequest request,
+            @AuthenticationPrincipal AppUserDetails user) {
+        return fromRecipesService.generate(fridgeId, user.getId(), request);
     }
 }
