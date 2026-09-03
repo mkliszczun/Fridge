@@ -6,6 +6,7 @@ import io.github.mkliszczun.fridge.dto.AiMealPlanFromRecipesProposalResponse;
 import io.github.mkliszczun.fridge.dto.AiMealPlanProposalResponse;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
 import io.github.mkliszczun.fridge.service.AiMealPlanFromRecipesService;
+import io.github.mkliszczun.fridge.service.AiMealPlanFromRecipesWithFridgeService;
 import io.github.mkliszczun.fridge.service.AiMealPlanService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,11 +24,14 @@ public class AiMealPlansController {
 
     private final AiMealPlanService service;
     private final AiMealPlanFromRecipesService fromRecipesService;
+    private final AiMealPlanFromRecipesWithFridgeService fromRecipesWithFridgeService;
 
     public AiMealPlansController(AiMealPlanService service,
-                                 AiMealPlanFromRecipesService fromRecipesService) {
+                                 AiMealPlanFromRecipesService fromRecipesService,
+                                 AiMealPlanFromRecipesWithFridgeService fromRecipesWithFridgeService) {
         this.service = service;
         this.fromRecipesService = fromRecipesService;
+        this.fromRecipesWithFridgeService = fromRecipesWithFridgeService;
     }
 
     @PostMapping("/generate")
@@ -43,5 +47,13 @@ public class AiMealPlansController {
             @Valid @RequestBody AiMealPlanFromRecipesGenerateRequest request,
             @AuthenticationPrincipal AppUserDetails user) {
         return fromRecipesService.generate(fridgeId, user.getId(), request);
+    }
+
+    @PostMapping("/generate-from-recipes-with-fridge")
+    public AiMealPlanFromRecipesProposalResponse generateFromRecipesWithFridge(
+            @PathVariable UUID fridgeId,
+            @Valid @RequestBody AiMealPlanFromRecipesGenerateRequest request,
+            @AuthenticationPrincipal AppUserDetails user) {
+        return fromRecipesWithFridgeService.generate(fridgeId, user.getId(), request);
     }
 }

@@ -1,0 +1,163 @@
+package io.github.mkliszczun.fridge.service;
+
+import io.github.mkliszczun.fridge.dto.AiMealPlanFromRecipesGenerateRequest;
+import io.github.mkliszczun.fridge.dto.AiMealPlanFromRecipesProposalResponse;
+import io.github.mkliszczun.fridge.dto.AiPlannedMealProposalResponse;
+import io.github.mkliszczun.fridge.exception.ConflictException;
+import io.github.mkliszczun.fridge.exception.InvalidAiResponseException;
+import io.github.mkliszczun.fridge.fridge.FridgeItem;
+import io.github.mkliszczun.fridge.recipe.Recipe;
+import io.github.mkliszczun.fridge.repository.FridgeItemRepository;
+import io.github.mkliszczun.fridge.repository.PlannedMealReservationRepository;
+import io.github.mkliszczun.fridge.repository.RecipeRepository;
+import jakarta.transaction.Transactional;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.IntStream;
+
+@Service
+public class AiMealPlanFromRecipesWithFridgeServiceImpl
+        implements AiMealPlanFromRecipesWithFridgeService {
+
+    private static final int MAX_ATTEMPTS = 2;
+
+    private final OpenAiMealPlanWithFridgeClient openAiClient;
+    private final RecipeRepository recipeRepository;
+    private final FridgeItemRepository fridgeItemRepository;
+    private final PlannedMealReservationRepository reservationRepository;
+    private final FridgeService fridgeService;
+
+    public AiMealPlanFromRecipesWithFridgeServiceImpl(
+            OpenAiMealPlanWithFridgeClient openAiClient,
+            RecipeRepository recipeRepository,
+            FridgeItemRepository fridgeItemRepository,
+            PlannedMealReservationRepository reservationRepository,
+            FridgeService fridgeService) {
+        this.openAiClient = openAiClient;
+        this.recipeRepository = recipeRepository;
+        this.fridgeItemRepository = fridgeItemRepository;
+        this.reservationRepository = reservationRepository;
+        this.fridgeService = fridgeService;
+    }
+
+    @Override
+    @Transactional
+    public AiMealPlanFromRecipesProposalResponse generate(
+            UUID fridgeId,
+            UUID userId,
+            AiMealPlanFromRecipesGenerateRequest request) {
+        fridgeService.requireMembership(fridgeId, userId);
+
+        List<Recipe> recipes = recipeRepository.findAllByOwnerUserIdOrderByNameAsc(userId);
+        if (recipes.isEmpty()) {
+            throw new ConflictException("No recipes available for meal planning");
+        }
+
+        Map<UUID, Recipe> recipesById = new LinkedHashMap<>();
+        recipes.forEach(recipe -> recipesById.put(recipe.getId(), recipe));
+        List<MealPlanWithFridgeRecipeCandidate> recipeCandidates = recipes.stream()
+                .map(this::toRecipeCandidate)
+                .toList();
+        List<MealPlanFridgeItemCandidate> fridgeItemCandidates = fridgeItemRepository
+                .findActiveByFridge(fridgeId).stream()
+                .map(this::toFridgeItemCandidate)
+                .filter(candidate -> candidate.availableAmount().signum() > 0)
+                .sorted(Comparator
+                        .comparing(MealPlanFridgeItemCandidate::effectiveExpireAt,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(candidate -> candidate.id().toString()))
+                .toList();
+
+        InvalidAiResponseException lastError = null;
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            try {
+                List<UUID> recipeIds = openAiClient.generate(
+                        request, recipeCandidates, fridgeItemCandidates);
+                validateSelection(recipeIds, request.days(), recipesById.keySet());
+                return toResponse(fridgeId, request, recipeIds, recipesById);
+            } catch (InvalidAiResponseException ex) {
+                lastError = ex;
+            }
+        }
+        throw lastError;
+    }
+
+    private MealPlanWithFridgeRecipeCandidate toRecipeCandidate(Recipe recipe) {
+        return new MealPlanWithFridgeRecipeCandidate(
+                recipe.getId(),
+                recipe.getName(),
+                recipe.getDescription(),
+                recipe.getServings(),
+                recipe.getIngredients().stream()
+                        .map(ingredient -> new MealPlanWithFridgeIngredientCandidate(
+                                ingredient.getName(),
+                                ingredient.getAmount(),
+                                ingredient.getUnit(),
+                                ingredient.isOptional()))
+                        .toList()
+        );
+    }
+
+    private MealPlanFridgeItemCandidate toFridgeItemCandidate(FridgeItem item) {
+        BigDecimal reserved = reservationRepository.sumReservedAmount(item.getId());
+        BigDecimal available = item.getAmount().subtract(reserved).max(BigDecimal.ZERO);
+        return new MealPlanFridgeItemCandidate(
+                item.getId(),
+                item.getProduct() == null ? item.getCustomName() : item.getProduct().getName(),
+                cleanAmount(available),
+                item.getUnit(),
+                item.getEffectiveExpireAt()
+        );
+    }
+
+    private void validateSelection(List<UUID> recipeIds, int days, Set<UUID> availableRecipeIds) {
+        boolean invalidCount = recipeIds == null || recipeIds.size() != days;
+        if (invalidCount) {
+            throw new InvalidAiResponseException("AI returned an invalid meal plan");
+        }
+        boolean unknownRecipe = recipeIds.stream().anyMatch(id -> !availableRecipeIds.contains(id));
+        boolean unnecessaryDuplicates = availableRecipeIds.size() >= days
+                && recipeIds.stream().distinct().count() != recipeIds.size();
+        if (unknownRecipe || unnecessaryDuplicates) {
+            throw new InvalidAiResponseException("AI returned an invalid meal plan");
+        }
+    }
+
+    private AiMealPlanFromRecipesProposalResponse toResponse(
+            UUID fridgeId,
+            AiMealPlanFromRecipesGenerateRequest request,
+            List<UUID> recipeIds,
+            Map<UUID, Recipe> recipesById) {
+        List<AiPlannedMealProposalResponse> meals = IntStream.range(0, recipeIds.size())
+                .mapToObj(index -> {
+                    Recipe recipe = recipesById.get(recipeIds.get(index));
+                    return new AiPlannedMealProposalResponse(
+                            request.startDate().plusDays(index),
+                            request.servings(),
+                            recipe.getId(),
+                            recipe.getName()
+                    );
+                })
+                .toList();
+        return new AiMealPlanFromRecipesProposalResponse(
+                fridgeId,
+                request.startDate(),
+                request.days(),
+                request.servings(),
+                meals
+        );
+    }
+
+    private BigDecimal cleanAmount(BigDecimal amount) {
+        BigDecimal stripped = amount.stripTrailingZeros();
+        return stripped.scale() < 0 ? stripped.setScale(0) : stripped;
+    }
+}
