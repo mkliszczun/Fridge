@@ -96,8 +96,45 @@ class FlowE2ETest {
                 .andReturn();
         var itemId = UUID.fromString(Json.read(itemRes.getResponse().getContentAsString()).str("id"));
 
-        // 6) USE PART OF SEALED ITEM
         var today = java.time.LocalDate.now();
+
+        // 6) CHANGE BEST-BEFORE DATE
+        var changedBestBeforeDate = today.plusDays(8);
+        mvc.perform(patch("/api/fridge-items/{id}/best-before-date", itemId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "bestBeforeDate", changedBestBeforeDate.toString()
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bestBeforeDate").value(changedBestBeforeDate.toString()))
+                .andExpect(jsonPath("$.effectiveExpireAt").value(changedBestBeforeDate.toString()));
+
+        // 7) USED PRODUCT CANNOT BE DELETED
+        mvc.perform(delete("/api/products/{id}", productId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict());
+
+        // 8) UNUSED PRODUCT CAN BE DELETED
+        var unusedProductRes = mvc.perform(post("/api/products")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "name", "Produkt testowy",
+                                "productType", "OTHER",
+                                "ean", "9876543210987",
+                                "defaultUnit", "GRAM"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        var unusedProductId = UUID.fromString(
+                Json.read(unusedProductRes.getResponse().getContentAsString()).str("id"));
+
+        mvc.perform(delete("/api/products/{id}", unusedProductId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        // 9) USE PART OF SEALED ITEM
         mvc.perform(post("/api/fridge-items/{id}/use", itemId)
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -108,12 +145,12 @@ class FlowE2ETest {
                 .andExpect(jsonPath("$.openDate").value(today.toString()))
                 .andExpect(jsonPath("$.effectiveExpireAt").value(today.plusDays(3).toString()));
 
-        // 7) DISCARD
+        // 10) DISCARD
         mvc.perform(post("/api/fridge-items/{id}/discard", itemId)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
 
-        // 8) GET ITEM
+        // 11) GET ITEM
          mvc.perform(get("/api/fridge-items/item/{id}", itemId)
                  .header("Authorization", "Bearer " + token))
              .andExpect(status().isOk())

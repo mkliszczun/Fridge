@@ -32,6 +32,8 @@ public interface FridgeItemRepository extends JpaRepository<FridgeItem, UUID> {
 
     boolean existsByFridgeIdAndArchivedAtIsNull(UUID fridgeId);
 
+    boolean existsByProductId(UUID productId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
       select i from FridgeItem i

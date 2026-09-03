@@ -3,6 +3,7 @@ package io.github.mkliszczun.fridge.controller;
 import io.github.mkliszczun.fridge.dto.FridgeItemCreateRequest;
 import io.github.mkliszczun.fridge.dto.FridgeItemResponse;
 import io.github.mkliszczun.fridge.dto.UpdateAmountRequest;
+import io.github.mkliszczun.fridge.dto.UpdateBestBeforeDateRequest;
 import io.github.mkliszczun.fridge.dto.UseAmountRequest;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.fridge.FridgeItem;
@@ -81,6 +82,16 @@ public class FridgeItemController {
                                            @AuthenticationPrincipal AppUserDetails currentUser) {
         var userId = currentUser.getId();
         var updated = itemService.updateAmount(itemId, userId, req.amount());
+        return toResponse(updated);
+    }
+
+    @PatchMapping("/{itemId}/best-before-date")
+    public FridgeItemResponse updateBestBeforeDate(
+            @PathVariable UUID itemId,
+            @Valid @RequestBody UpdateBestBeforeDateRequest request,
+            @AuthenticationPrincipal AppUserDetails currentUser) {
+        var updated = itemService.updateBestBeforeDate(
+                itemId, currentUser.getId(), request.bestBeforeDate());
         return toResponse(updated);
     }
 

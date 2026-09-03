@@ -340,6 +340,53 @@ class FridgeItemServiceImplTest {
         assertThat(res.getAmount()).isEqualTo("0.5");
     }
 
+    // ---------- updateBestBeforeDate ----------
+
+    @Test
+    void updateBestBeforeDate_recomputesEffectiveDateAndPersists() {
+        LocalDate newBestBeforeDate = LocalDate.now().plusDays(10);
+        LocalDate effectiveExpireAt = LocalDate.now().plusDays(3);
+        persistedItem.setState(ItemState.OPEN);
+        persistedItem.setOpenDate(LocalDate.now());
+        persistedItem.setProduct(product);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+        when(expirePolicy.computeEffectiveExpireAt(
+                newBestBeforeDate, persistedItem.getOpenDate(), product, null, null))
+                .thenReturn(effectiveExpireAt);
+        when(itemRepository.save(persistedItem)).thenReturn(persistedItem);
+
+        FridgeItem result = service.updateBestBeforeDate(itemId, userId, newBestBeforeDate);
+
+        assertThat(result.getBestBeforeDate()).isEqualTo(newBestBeforeDate);
+        assertThat(result.getEffectiveExpireAt()).isEqualTo(effectiveExpireAt);
+        verify(itemRepository).save(persistedItem);
+    }
+
+    @Test
+    void updateBestBeforeDate_notMember_isForbidden() {
+        persistedItem.setState(ItemState.SEALED);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.updateBestBeforeDate(
+                itemId, userId, LocalDate.now().plusDays(5)))
+                .isInstanceOf(ForbiddenException.class);
+        verify(itemRepository, never()).save(any());
+    }
+
+    @Test
+    void updateBestBeforeDate_archivedItem_throwsConflict() {
+        persistedItem.setState(ItemState.DISCARDED);
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(persistedItem));
+        when(memberRepository.existsByFridgeIdAndUserId(fridgeId, userId)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.updateBestBeforeDate(
+                itemId, userId, LocalDate.now().plusDays(5)))
+                .isInstanceOf(ConflictException.class);
+        verify(itemRepository, never()).save(any());
+    }
+
     // ---------- consume / discard ----------
 
     @Test

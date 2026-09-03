@@ -2,11 +2,13 @@ package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.enums.ProductType;
 import io.github.mkliszczun.fridge.enums.Unit;
+import io.github.mkliszczun.fridge.exception.ConflictException;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.exception.ParsingProductFromApiException;
 import io.github.mkliszczun.fridge.fridge.Product;
 import io.github.mkliszczun.fridge.off.OffClient;
 import io.github.mkliszczun.fridge.repository.ProductRepository;
+import io.github.mkliszczun.fridge.repository.FridgeItemRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,9 +27,13 @@ public class ProductServiceImpl implements ProductService {
 
     final OffClient offClient;
 
-    public ProductServiceImpl(ProductRepository productRepository, OffClient offClient){
+    final FridgeItemRepository fridgeItemRepository;
+
+    public ProductServiceImpl(ProductRepository productRepository, OffClient offClient,
+                              FridgeItemRepository fridgeItemRepository){
         this.productRepository = productRepository;
         this.offClient = offClient;
+        this.fridgeItemRepository = fridgeItemRepository;
     }
 
     @Override
@@ -57,6 +63,9 @@ public class ProductServiceImpl implements ProductService {
     public boolean deleteProduct(UUID id) {
         if (!productRepository.existsById(id)) {
             return false;
+        }
+        if (fridgeItemRepository.existsByProductId(id)) {
+            throw new ConflictException("Product is used by a fridge item");
         }
         productRepository.deleteById(id);
         return true;

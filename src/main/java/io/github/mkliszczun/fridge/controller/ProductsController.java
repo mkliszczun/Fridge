@@ -3,6 +3,7 @@ package io.github.mkliszczun.fridge.controller;
 import io.github.mkliszczun.fridge.dto.AddProductRequest;
 import io.github.mkliszczun.fridge.dto.AddProductResponse;
 import io.github.mkliszczun.fridge.dto.UpdateShelfLifeAfterOpeningRequest;
+import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.fridge.Product;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
 import io.github.mkliszczun.fridge.service.ProductService;
@@ -60,6 +61,14 @@ public class ProductsController {
         UUID userId = userDetails.getId();
         Product product = productService.findProductByEan(ean);
         return toResponse(product);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id) {
+        if (!productService.deleteProduct(id)) {
+            throw new NotFoundException("Product not found: " + id);
+        }
     }
 
     private AddProductResponse toResponse(Product product) {

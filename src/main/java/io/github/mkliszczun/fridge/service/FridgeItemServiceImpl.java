@@ -144,6 +144,21 @@ public class FridgeItemServiceImpl implements FridgeItemService{
 
     @Override
     @Transactional
+    public FridgeItem updateBestBeforeDate(
+            UUID itemId, UUID currentUserId, LocalDate bestBeforeDate) {
+        FridgeItem item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new NotFoundException("Item not found"));
+        assertMembership(item.getFridge().getId(), currentUserId);
+        assertActive(item, "updated");
+
+        item.setBestBeforeDate(bestBeforeDate);
+        item.setEffectiveExpireAt(expirePolicy.computeEffectiveExpireAt(
+                bestBeforeDate, item.getOpenDate(), item.getProduct(), null, null));
+        return itemRepository.save(item);
+    }
+
+    @Override
+    @Transactional
     public void consume(UUID itemId, UUID currentUserId) {
         archiveWithState(itemId, currentUserId, ItemState.CONSUMED);
     }

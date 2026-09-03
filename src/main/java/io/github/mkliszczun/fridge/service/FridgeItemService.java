@@ -28,6 +28,8 @@ public interface FridgeItemService {
 
     FridgeItem updateAmount(UUID itemId, UUID currentUserId, BigDecimal newAmount);
 
+    FridgeItem updateBestBeforeDate(UUID itemId, UUID currentUserId, LocalDate bestBeforeDate);
+
     void consume(UUID itemId, UUID currentUserId);
 
     void discard(UUID itemId, UUID currentUserId);

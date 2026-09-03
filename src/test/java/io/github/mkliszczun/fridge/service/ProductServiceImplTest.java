@@ -2,10 +2,12 @@ package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.enums.ProductType;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
+import io.github.mkliszczun.fridge.exception.ConflictException;
 import io.github.mkliszczun.fridge.exception.ParsingProductFromApiException;
 import io.github.mkliszczun.fridge.fridge.Product;
 import io.github.mkliszczun.fridge.off.OffClient;
 import io.github.mkliszczun.fridge.repository.ProductRepository;
+import io.github.mkliszczun.fridge.repository.FridgeItemRepository;
 import io.github.mkliszczun.fridge.enums.Unit;
 import jakarta.persistence.EntityNotFoundException;
 import org.assertj.core.api.Assertions;
@@ -32,6 +34,9 @@ class ProductServiceImplTest {
 
     @Mock
     private ProductRepository productRepository;
+
+    @Mock
+    private FridgeItemRepository fridgeItemRepository;
 
     @InjectMocks
     private ProductServiceImpl productService;
@@ -120,6 +125,7 @@ class ProductServiceImplTest {
     @Test
     void deleteProduct_whenExists_shouldDeleteAndReturnTrue() {
         given(productRepository.existsById(productId)).willReturn(true);
+        given(fridgeItemRepository.existsByProductId(productId)).willReturn(false);
 
         boolean deleted = productService.deleteProduct(productId);
 
@@ -134,6 +140,17 @@ class ProductServiceImplTest {
         boolean deleted = productService.deleteProduct(productId);
 
         assertThat(deleted).isFalse();
+        verify(productRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void deleteProduct_whenUsedByFridgeItem_shouldThrowConflict() {
+        given(productRepository.existsById(productId)).willReturn(true);
+        given(fridgeItemRepository.existsByProductId(productId)).willReturn(true);
+
+        assertThatThrownBy(() -> productService.deleteProduct(productId))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("used");
         verify(productRepository, never()).deleteById(any());
     }
 
