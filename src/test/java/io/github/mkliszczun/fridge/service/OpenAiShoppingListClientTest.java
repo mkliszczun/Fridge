@@ -1,6 +1,7 @@
 package io.github.mkliszczun.fridge.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import io.github.mkliszczun.fridge.config.OpenAiProperties;
 import io.github.mkliszczun.fridge.enums.Unit;
 import io.github.mkliszczun.fridge.exception.AiServiceUnavailableException;
@@ -11,6 +12,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,7 +30,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 class OpenAiShoppingListClientTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .findAndRegisterModules()
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     @Test
     void match_sendsCandidatesAndParsesMatchedIds() throws Exception {
@@ -39,6 +43,7 @@ class OpenAiShoppingListClientTest {
                 builder, properties, objectMapper);
         UUID ingredientId = UUID.randomUUID();
         UUID fridgeItemId = UUID.randomUUID();
+        LocalDate expirationDate = LocalDate.now().plusDays(2);
         String response = objectMapper.writeValueAsString(Map.of(
                 "output_text", objectMapper.writeValueAsString(Map.of(
                         "matches", List.of(Map.of(
@@ -55,6 +60,7 @@ class OpenAiShoppingListClientTest {
                 .andExpect(content().string(containsString(ingredientId.toString())))
                 .andExpect(content().string(containsString(fridgeItemId.toString())))
                 .andExpect(content().string(containsString("Makaron pełnoziarnisty")))
+                .andExpect(content().string(containsString(expirationDate.toString())))
                 .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
 
         List<ShoppingListIngredientMatch> result = client.match(
@@ -64,7 +70,8 @@ class OpenAiShoppingListClientTest {
                         fridgeItemId,
                         "Makaron pełnoziarnisty",
                         new BigDecimal("150"),
-                        Unit.GRAM))
+                        Unit.GRAM,
+                        expirationDate))
         );
 
         assertThat(result).containsExactly(

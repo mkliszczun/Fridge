@@ -76,7 +76,8 @@ public class AiShoppingListServiceImpl implements AiShoppingListService {
         List<ShoppingListFridgeItemCandidate> fridgeItemCandidates = fridgeItems.stream()
                 .filter(item -> availableAmounts.get(item.getId()).signum() > 0)
                 .map(item -> new ShoppingListFridgeItemCandidate(
-                        item.getId(), itemName(item), availableAmounts.get(item.getId()), item.getUnit()))
+                        item.getId(), itemName(item), availableAmounts.get(item.getId()),
+                        item.getUnit(), item.getEffectiveExpireAt()))
                 .toList();
 
         List<ShoppingListIngredientMatch> matches = ingredientCandidates.isEmpty()

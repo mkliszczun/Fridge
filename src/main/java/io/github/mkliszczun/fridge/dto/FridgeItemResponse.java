@@ -13,6 +13,8 @@ public record FridgeItemResponse(
         UUID productId,
         String name,
         BigDecimal amount,
+        BigDecimal reservedAmount,
+        BigDecimal availableAmount,
         Unit unit,
         LocalDate bestBeforeDate,
         LocalDate openDate,

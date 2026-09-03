@@ -7,12 +7,14 @@ import io.github.mkliszczun.fridge.dto.PlannedMealReservationResponse;
 import io.github.mkliszczun.fridge.dto.PlannedMealReservationUpdateRequest;
 import io.github.mkliszczun.fridge.dto.PlannedMealResponse;
 import io.github.mkliszczun.fridge.dto.PlannedMealUpdateRequest;
+import io.github.mkliszczun.fridge.dto.PlannedMealsReserveRequest;
 import io.github.mkliszczun.fridge.dto.PlannedRecipeResponse;
 import io.github.mkliszczun.fridge.mealplan.PlannedMeal;
 import io.github.mkliszczun.fridge.mealplan.PlannedMealIngredient;
 import io.github.mkliszczun.fridge.mealplan.PlannedMealReservation;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
 import io.github.mkliszczun.fridge.service.PlannedMealService;
+import io.github.mkliszczun.fridge.service.PlannedMealAutoReservationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,9 +36,12 @@ import java.util.UUID;
 public class PlannedMealsController {
 
     private final PlannedMealService service;
+    private final PlannedMealAutoReservationService autoReservationService;
 
-    public PlannedMealsController(PlannedMealService service) {
+    public PlannedMealsController(PlannedMealService service,
+                                  PlannedMealAutoReservationService autoReservationService) {
         this.service = service;
+        this.autoReservationService = autoReservationService;
     }
 
     @PostMapping
@@ -76,6 +81,16 @@ public class PlannedMealsController {
                        @PathVariable UUID plannedMealId,
                        @AuthenticationPrincipal AppUserDetails user) {
         service.delete(fridgeId, plannedMealId, user.getId());
+    }
+
+    @PostMapping("/reserve")
+    public List<PlannedMealResponse> reserve(
+            @PathVariable UUID fridgeId,
+            @Valid @RequestBody PlannedMealsReserveRequest request,
+            @AuthenticationPrincipal AppUserDetails user) {
+        return autoReservationService.reserve(fridgeId, user.getId(), request).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @PostMapping("/{plannedMealId}/reservations")

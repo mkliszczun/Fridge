@@ -17,6 +17,11 @@ public interface PlannedMealReservationRepository extends JpaRepository<PlannedM
 
     boolean existsByPlannedMealIngredientIdAndFridgeItemId(UUID ingredientId, UUID fridgeItemId);
 
+    Optional<PlannedMealReservation> findByPlannedMealIngredientIdAndFridgeItemId(
+            UUID ingredientId,
+            UUID fridgeItemId
+    );
+
     @Query("""
             select coalesce(sum(reservation.amount), 0)
             from PlannedMealReservation reservation

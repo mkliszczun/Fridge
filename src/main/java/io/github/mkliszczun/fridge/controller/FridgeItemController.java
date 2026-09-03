@@ -7,6 +7,7 @@ import io.github.mkliszczun.fridge.dto.UseAmountRequest;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
 import io.github.mkliszczun.fridge.fridge.FridgeItem;
 import io.github.mkliszczun.fridge.repository.FridgeItemRepository;
+import io.github.mkliszczun.fridge.repository.PlannedMealReservationRepository;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
 import io.github.mkliszczun.fridge.service.FridgeItemService;
 import jakarta.validation.Valid;
@@ -15,6 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,11 +26,14 @@ public class FridgeItemController {
 
     private final FridgeItemService itemService;
     private final FridgeItemRepository itemRepository;
+    private final PlannedMealReservationRepository reservationRepository;
 
     public FridgeItemController(FridgeItemService itemService,
-                                FridgeItemRepository itemRepository) {
+                                FridgeItemRepository itemRepository,
+                                PlannedMealReservationRepository reservationRepository) {
         this.itemService = itemService;
         this.itemRepository = itemRepository;
+        this.reservationRepository = reservationRepository;
 
     }
 
@@ -115,17 +120,28 @@ public class FridgeItemController {
     // --- mapper ---
     private FridgeItemResponse toResponse(FridgeItem i) {
         var name = (i.getProduct() != null) ? i.getProduct().getName() : i.getCustomName();
+        BigDecimal reservedAmount = cleanAmount(
+                reservationRepository.sumReservedAmount(i.getId()));
+        BigDecimal availableAmount = cleanAmount(
+                i.getAmount().subtract(reservedAmount).max(BigDecimal.ZERO));
         return new FridgeItemResponse(
                 i.getId(),
                 i.getFridge().getId(),
                 i.getProduct() != null ? i.getProduct().getId() : null,
                 name,
                 i.getAmount(),
+                reservedAmount,
+                availableAmount,
                 i.getUnit(),
                 i.getBestBeforeDate(),
                 i.getOpenDate(),
                 i.getEffectiveExpireAt(),
                 i.getState()
         );
+    }
+
+    private BigDecimal cleanAmount(BigDecimal amount) {
+        BigDecimal stripped = amount.stripTrailingZeros();
+        return stripped.scale() < 0 ? stripped.setScale(0) : stripped;
     }
 }
