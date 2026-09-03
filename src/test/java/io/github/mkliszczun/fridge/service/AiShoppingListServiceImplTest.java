@@ -85,6 +85,10 @@ class AiShoppingListServiceImplTest {
         assertThat(result.items().get(0).amount()).isEqualByComparingTo("100");
         assertThat(result.items().get(0).unit()).isEqualTo("GRAM");
         assertThat(result.items().get(0).plannedMealIngredientIds()).containsExactly(pasta.getId());
+        assertThat(result.items().get(0).sources()).singleElement().satisfies(source -> {
+            assertThat(source.plannedMealIngredientId()).isEqualTo(pasta.getId());
+            assertThat(source.amount()).isEqualByComparingTo("100");
+        });
         assertThat(result.items().get(1).name()).isEqualTo("Ser");
         assertThat(result.items().get(1).amount()).isEqualByComparingTo("100");
         assertThat(result.items().get(1).plannedMealIngredientIds()).containsExactly(cheese.getId());
@@ -181,6 +185,9 @@ class AiShoppingListServiceImplTest {
             assertThat(item.amount()).isEqualByComparingTo("3");
             assertThat(item.unit()).isEqualTo("PIECE");
             assertThat(item.plannedMealIngredientIds()).hasSize(2);
+            assertThat(item.sources())
+                    .extracting(source -> source.amount())
+                    .containsExactly(new BigDecimal("1.5"), new BigDecimal("1.5"));
         });
         verify(openAiClient, never()).match(anyList(), anyList());
     }

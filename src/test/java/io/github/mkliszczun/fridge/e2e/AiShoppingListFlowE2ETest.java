@@ -2,9 +2,15 @@ package io.github.mkliszczun.fridge.e2e;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.mkliszczun.fridge.enums.FridgeRole;
+import io.github.mkliszczun.fridge.fridge.FridgeMember;
+import io.github.mkliszczun.fridge.repository.FridgeMemberRepository;
+import io.github.mkliszczun.fridge.repository.FridgeRepository;
 import io.github.mkliszczun.fridge.repository.PlannedMealReservationRepository;
+import io.github.mkliszczun.fridge.repository.ShoppingListItemRepository;
 import io.github.mkliszczun.fridge.service.OpenAiShoppingListClient;
 import io.github.mkliszczun.fridge.service.ShoppingListIngredientMatch;
+import io.github.mkliszczun.fridge.util.JwtUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -28,6 +34,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -48,11 +57,23 @@ class AiShoppingListFlowE2ETest {
     @Autowired
     private PlannedMealReservationRepository reservationRepository;
 
+    @Autowired
+    private ShoppingListItemRepository shoppingListItemRepository;
+
+    @Autowired
+    private FridgeRepository fridgeRepository;
+
+    @Autowired
+    private FridgeMemberRepository fridgeMemberRepository;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
     @MockitoBean
     private OpenAiShoppingListClient openAiClient;
 
     @Test
-    void memberCanGenerateShoppingListWithoutSavingReservations() throws Exception {
+    void membersCanGenerateImportAndSharePersistentShoppingList() throws Exception {
         String ownerToken = register();
         String outsiderToken = register();
         UUID fridgeId = createFridge(ownerToken);
@@ -69,7 +90,8 @@ class AiShoppingListFlowE2ETest {
                         pastaIngredientId, List.of(fridgeItemId))
         ));
 
-        mvc.perform(post("/api/fridges/{fridgeId}/ai/shopping-lists/generate", fridgeId)
+        var proposalResult = mvc.perform(post(
+                        "/api/fridges/{fridgeId}/ai/shopping-lists/generate", fridgeId)
                         .header("Authorization", "Bearer " + ownerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("plannedMealIds", List.of(plannedMealId)))))
@@ -82,19 +104,98 @@ class AiShoppingListFlowE2ETest {
                 .andExpect(jsonPath("$.items[0].unit").value("GRAM"))
                 .andExpect(jsonPath("$.items[0].plannedMealIngredientIds[0]")
                         .value(pastaIngredientId.toString()))
+                .andExpect(jsonPath("$.items[0].sources[0].plannedMealIngredientId")
+                        .value(pastaIngredientId.toString()))
+                .andExpect(jsonPath("$.items[0].sources[0].amount").value(100))
                 .andExpect(jsonPath("$.items[1].name").value("Ser"))
                 .andExpect(jsonPath("$.items[1].amount").value(100))
                 .andExpect(jsonPath("$.items[1].unit").value("GRAM"))
                 .andExpect(jsonPath("$.items[1].plannedMealIngredientIds[0]")
-                        .value(cheeseIngredientId.toString()));
+                        .value(cheeseIngredientId.toString()))
+                .andReturn();
 
         assertThat(reservationRepository.count()).isZero();
+        assertThat(shoppingListItemRepository.count()).isZero();
+
+        JsonNode proposal = read(proposalResult.getResponse().getContentAsString());
+        String importRequest = json(Map.of("items", proposal.get("items")));
+        var importedResult = mvc.perform(post(
+                        "/api/fridges/{fridgeId}/shopping-list/import", fridgeId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(importRequest))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].amount").value(100))
+                .andExpect(jsonPath("$.items[1].amount").value(100))
+                .andReturn();
+        UUID firstImportedItemId = UUID.fromString(read(
+                importedResult.getResponse().getContentAsString())
+                .get("items").get(0).get("id").asText());
+
+        mvc.perform(post("/api/fridges/{fridgeId}/shopping-list/import", fridgeId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(importRequest))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].amount").value(100));
+        assertThat(shoppingListItemRepository.count()).isEqualTo(2);
+
+        mvc.perform(get("/api/fridges/{fridgeId}/shopping-list", fridgeId)
+                        .header("Authorization", "Bearer " + outsiderToken))
+                .andExpect(status().isForbidden());
 
         mvc.perform(post("/api/fridges/{fridgeId}/ai/shopping-lists/generate", fridgeId)
                         .header("Authorization", "Bearer " + outsiderToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("plannedMealIds", List.of(plannedMealId)))))
                 .andExpect(status().isForbidden());
+
+        addMember(fridgeId, outsiderToken);
+        mvc.perform(get("/api/fridges/{fridgeId}/shopping-list", fridgeId)
+                        .header("Authorization", "Bearer " + outsiderToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2));
+
+        var manualItemResult = mvc.perform(post(
+                        "/api/fridges/{fridgeId}/shopping-list/items", fridgeId)
+                        .header("Authorization", "Bearer " + outsiderToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "name", "Chleb",
+                                "amount", 1,
+                                "unit", "PIECE"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Chleb"))
+                .andReturn();
+        UUID manualItemId = UUID.fromString(
+                read(manualItemResult.getResponse().getContentAsString()).get("id").asText());
+
+        mvc.perform(patch(
+                        "/api/fridges/{fridgeId}/shopping-list/items/{itemId}/checked",
+                        fridgeId, manualItemId)
+                        .header("Authorization", "Bearer " + outsiderToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("checked", true))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.checked").value(true));
+
+        mvc.perform(delete("/api/fridges/{fridgeId}/shopping-list/checked-items", fridgeId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(delete(
+                        "/api/fridges/{fridgeId}/shopping-list/items/{itemId}",
+                        fridgeId, firstImportedItemId)
+                        .header("Authorization", "Bearer " + outsiderToken))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/fridges/{fridgeId}/shopping-list", fridgeId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1));
 
         List<UUID> tooManyMealIds = IntStream.range(0, 11)
                 .mapToObj(ignored -> UUID.randomUUID())
@@ -106,6 +207,15 @@ class AiShoppingListFlowE2ETest {
                 .andExpect(status().isBadRequest());
 
         verify(openAiClient, times(1)).match(anyList(), anyList());
+    }
+
+    private void addMember(UUID fridgeId, String token) {
+        FridgeMember member = new FridgeMember();
+        member.setFridge(fridgeRepository.findById(fridgeId).orElseThrow());
+        member.setUserId(jwtUtil.extractUserId(token).orElseThrow());
+        member.setRoleInFridge(FridgeRole.MEMBER);
+        member.setIsDefault(false);
+        fridgeMemberRepository.save(member);
     }
 
     private String register() throws Exception {

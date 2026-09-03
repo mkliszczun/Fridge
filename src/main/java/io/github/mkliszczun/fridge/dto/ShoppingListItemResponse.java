@@ -4,11 +4,12 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
-public record AiShoppingListItemResponse(
+public record ShoppingListItemResponse(
+        UUID id,
         String name,
         BigDecimal amount,
         String unit,
-        List<UUID> plannedMealIngredientIds,
-        List<AiShoppingListItemSourceResponse> sources
+        boolean checked,
+        List<UUID> plannedMealIngredientIds
 ) {
 }

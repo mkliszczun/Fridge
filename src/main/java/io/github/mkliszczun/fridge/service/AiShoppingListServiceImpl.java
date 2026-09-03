@@ -2,6 +2,7 @@ package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.dto.AiShoppingListGenerateRequest;
 import io.github.mkliszczun.fridge.dto.AiShoppingListItemResponse;
+import io.github.mkliszczun.fridge.dto.AiShoppingListItemSourceResponse;
 import io.github.mkliszczun.fridge.dto.AiShoppingListProposalResponse;
 import io.github.mkliszczun.fridge.enums.Unit;
 import io.github.mkliszczun.fridge.exception.ConflictException;
@@ -310,6 +311,7 @@ public class AiShoppingListServiceImpl implements AiShoppingListService {
         private final String unit;
         private final boolean quantified;
         private final List<UUID> ingredientIds = new ArrayList<>();
+        private final List<AiShoppingListItemSourceResponse> sources = new ArrayList<>();
         private BigDecimal amount = BigDecimal.ZERO;
 
         private ShoppingItemAccumulator(String name, String unit, boolean quantified) {
@@ -323,6 +325,10 @@ public class AiShoppingListServiceImpl implements AiShoppingListService {
                 amount = amount.add(addedAmount);
             }
             ingredientIds.add(ingredientId);
+            sources.add(new AiShoppingListItemSourceResponse(
+                    ingredientId,
+                    addedAmount == null ? null : clean(addedAmount)
+            ));
         }
 
         private AiShoppingListItemResponse toResponse() {
@@ -338,8 +344,14 @@ public class AiShoppingListServiceImpl implements AiShoppingListService {
                     name,
                     responseAmount,
                     unit,
-                    List.copyOf(ingredientIds)
+                    List.copyOf(ingredientIds),
+                    List.copyOf(sources)
             );
+        }
+
+        private BigDecimal clean(BigDecimal value) {
+            BigDecimal stripped = value.stripTrailingZeros();
+            return stripped.scale() < 0 ? stripped.setScale(0) : stripped;
         }
     }
 }
