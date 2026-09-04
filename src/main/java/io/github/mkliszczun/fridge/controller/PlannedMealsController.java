@@ -1,6 +1,7 @@
 package io.github.mkliszczun.fridge.controller;
 
 import io.github.mkliszczun.fridge.dto.PlannedMealCreateRequest;
+import io.github.mkliszczun.fridge.dto.PlannedMealCompletionResponse;
 import io.github.mkliszczun.fridge.dto.PlannedMealIngredientResponse;
 import io.github.mkliszczun.fridge.dto.PlannedMealReservationRequest;
 import io.github.mkliszczun.fridge.dto.PlannedMealReservationResponse;
@@ -15,6 +16,7 @@ import io.github.mkliszczun.fridge.mealplan.PlannedMealReservation;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
 import io.github.mkliszczun.fridge.service.PlannedMealService;
 import io.github.mkliszczun.fridge.service.PlannedMealAutoReservationService;
+import io.github.mkliszczun.fridge.service.PlannedMealCompletionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,11 +39,14 @@ public class PlannedMealsController {
 
     private final PlannedMealService service;
     private final PlannedMealAutoReservationService autoReservationService;
+    private final PlannedMealCompletionService completionService;
 
     public PlannedMealsController(PlannedMealService service,
-                                  PlannedMealAutoReservationService autoReservationService) {
+                                  PlannedMealAutoReservationService autoReservationService,
+                                  PlannedMealCompletionService completionService) {
         this.service = service;
         this.autoReservationService = autoReservationService;
+        this.completionService = completionService;
     }
 
     @PostMapping
@@ -93,6 +98,14 @@ public class PlannedMealsController {
                 .toList();
     }
 
+    @PostMapping("/{plannedMealId}/complete")
+    public PlannedMealCompletionResponse complete(
+            @PathVariable UUID fridgeId,
+            @PathVariable UUID plannedMealId,
+            @AuthenticationPrincipal AppUserDetails user) {
+        return completionService.complete(fridgeId, plannedMealId, user.getId());
+    }
+
     @PostMapping("/{plannedMealId}/reservations")
     @ResponseStatus(HttpStatus.CREATED)
     public PlannedMealReservationResponse createReservation(
@@ -132,7 +145,8 @@ public class PlannedMealsController {
                 plannedMeal.getServings(),
                 plannedMeal.getCreatedByUserId(),
                 plannedMeal.getCreatedAt(),
-                plannedMeal.getUpdatedAt()
+                plannedMeal.getUpdatedAt(),
+                plannedMeal.getCompletedAt()
         );
     }
 

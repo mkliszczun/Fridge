@@ -21,6 +21,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -74,6 +75,9 @@ public class PlannedMeal extends Audit {
 
     @Column(name = "created_by_user_id", nullable = false, columnDefinition = "uuid")
     private UUID createdByUserId;
+
+    @Column(name = "completed_at")
+    private OffsetDateTime completedAt;
 
     public UUID getId() {
         return id;
@@ -140,5 +144,13 @@ public class PlannedMeal extends Audit {
 
     public void setCreatedByUserId(UUID createdByUserId) {
         this.createdByUserId = createdByUserId;
+    }
+
+    public OffsetDateTime getCompletedAt() {
+        return completedAt;
+    }
+
+    public void setCompletedAt(OffsetDateTime completedAt) {
+        this.completedAt = completedAt;
     }
 }

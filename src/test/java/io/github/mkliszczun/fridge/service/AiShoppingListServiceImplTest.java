@@ -66,7 +66,7 @@ class AiShoppingListServiceImplTest {
         FridgeItem pastaItem = fridgeItem("Makaron pełnoziarnisty", "300", Unit.GRAM);
         reserve(pasta, pastaItem, "100");
 
-        when(plannedMealRepository.findByIdAndFridgeId(plannedMealId, fridgeId))
+        when(plannedMealRepository.findActiveByIdAndFridgeId(plannedMealId, fridgeId))
                 .thenReturn(Optional.of(meal));
         when(fridgeItemRepository.findActiveByFridge(fridgeId)).thenReturn(List.of(pastaItem));
         when(reservationRepository.sumReservedAmount(pastaItem.getId()))
@@ -116,7 +116,7 @@ class AiShoppingListServiceImplTest {
         PlannedMealIngredient ingredient = ingredient(meal, "Makaron", "200", "g", false);
         FridgeItem item = fridgeItem("Makaron", "200", Unit.GRAM);
 
-        when(plannedMealRepository.findByIdAndFridgeId(plannedMealId, fridgeId))
+        when(plannedMealRepository.findActiveByIdAndFridgeId(plannedMealId, fridgeId))
                 .thenReturn(Optional.of(meal));
         when(fridgeItemRepository.findActiveByFridge(fridgeId)).thenReturn(List.of(item));
         when(reservationRepository.sumReservedAmount(item.getId())).thenReturn(BigDecimal.ZERO);
@@ -143,7 +143,7 @@ class AiShoppingListServiceImplTest {
         ingredient(meal, "Ryż", "200", "g", false);
         ingredient(meal, "Sól", null, null, false);
 
-        when(plannedMealRepository.findByIdAndFridgeId(plannedMealId, fridgeId))
+        when(plannedMealRepository.findActiveByIdAndFridgeId(plannedMealId, fridgeId))
                 .thenReturn(Optional.of(meal));
         when(fridgeItemRepository.findActiveByFridge(fridgeId)).thenReturn(List.of());
 
@@ -169,9 +169,9 @@ class AiShoppingListServiceImplTest {
         ingredient(firstMeal, "Jajka", "1", "szt.", false);
         ingredient(secondMeal, "Jajka", "1", "szt.", false);
 
-        when(plannedMealRepository.findByIdAndFridgeId(firstMealId, fridgeId))
+        when(plannedMealRepository.findActiveByIdAndFridgeId(firstMealId, fridgeId))
                 .thenReturn(Optional.of(firstMeal));
-        when(plannedMealRepository.findByIdAndFridgeId(secondMealId, fridgeId))
+        when(plannedMealRepository.findActiveByIdAndFridgeId(secondMealId, fridgeId))
                 .thenReturn(Optional.of(secondMeal));
         when(fridgeItemRepository.findActiveByFridge(fridgeId)).thenReturn(List.of());
 

@@ -12,6 +12,7 @@ public record PlannedMealResponse(
         Integer servings,
         UUID createdByUserId,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        OffsetDateTime completedAt
 ) {
 }

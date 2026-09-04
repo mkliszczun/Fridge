@@ -63,7 +63,7 @@ public class AiShoppingListServiceImpl implements AiShoppingListService {
         assertUniqueMealIds(request.plannedMealIds());
 
         List<PlannedMeal> meals = request.plannedMealIds().stream()
-                .map(id -> plannedMealRepository.findByIdAndFridgeId(id, fridgeId)
+                .map(id -> plannedMealRepository.findActiveByIdAndFridgeId(id, fridgeId)
                         .orElseThrow(() -> new NotFoundException("Planned meal not found")))
                 .toList();
         List<IngredientNeed> needs = toIngredientNeeds(meals);

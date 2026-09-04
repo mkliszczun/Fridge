@@ -42,4 +42,12 @@ public interface FridgeItemRepository extends JpaRepository<FridgeItem, UUID> {
         and i.archivedAt is null
       """)
     Optional<FridgeItem> findActiveByIdAndFridgeForUpdate(UUID itemId, UUID fridgeId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+      select i from FridgeItem i
+      where i.id = :itemId
+        and i.fridge.id = :fridgeId
+      """)
+    Optional<FridgeItem> findByIdAndFridgeForUpdate(UUID itemId, UUID fridgeId);
 }

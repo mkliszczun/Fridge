@@ -3,8 +3,11 @@ package io.github.mkliszczun.fridge.repository;
 import io.github.mkliszczun.fridge.mealplan.PlannedMeal;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+
+import jakarta.persistence.LockModeType;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,7 +21,8 @@ public interface PlannedMealRepository extends JpaRepository<PlannedMeal, UUID> 
             "ingredients.reservations.fridgeItem",
             "ingredients.reservations.fridgeItem.product"
     })
-    List<PlannedMeal> findAllByFridgeIdOrderByPlannedDateAscCreatedAtAsc(UUID fridgeId);
+    List<PlannedMeal> findAllByFridgeIdAndCompletedAtIsNullOrderByPlannedDateAscCreatedAtAsc(
+            UUID fridgeId);
 
     @EntityGraph(attributePaths = {
             "ingredients",
@@ -26,7 +30,21 @@ public interface PlannedMealRepository extends JpaRepository<PlannedMeal, UUID> 
             "ingredients.reservations.fridgeItem",
             "ingredients.reservations.fridgeItem.product"
     })
-    Optional<PlannedMeal> findByIdAndFridgeId(UUID id, UUID fridgeId);
+    @Query("""
+            select meal from PlannedMeal meal
+            where meal.id = :id
+              and meal.fridge.id = :fridgeId
+              and meal.completedAt is null
+            """)
+    Optional<PlannedMeal> findActiveByIdAndFridgeId(UUID id, UUID fridgeId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select meal from PlannedMeal meal
+            where meal.id = :id
+              and meal.fridge.id = :fridgeId
+            """)
+    Optional<PlannedMeal> findByIdAndFridgeIdForUpdate(UUID id, UUID fridgeId);
 
     @Modifying
     @Query("update PlannedMeal p set p.sourceRecipe = null where p.sourceRecipe.id = :recipeId")

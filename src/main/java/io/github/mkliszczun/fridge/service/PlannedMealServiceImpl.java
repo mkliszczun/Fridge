@@ -63,7 +63,8 @@ public class PlannedMealServiceImpl implements PlannedMealService {
     @Transactional
     public List<PlannedMeal> list(UUID fridgeId, UUID userId) {
         fridgeService.requireMembership(fridgeId, userId);
-        return repository.findAllByFridgeIdOrderByPlannedDateAscCreatedAtAsc(fridgeId);
+        return repository.findAllByFridgeIdAndCompletedAtIsNullOrderByPlannedDateAscCreatedAtAsc(
+                fridgeId);
     }
 
     @Override
@@ -144,7 +145,7 @@ public class PlannedMealServiceImpl implements PlannedMealService {
     }
 
     private PlannedMeal findPlannedMeal(UUID plannedMealId, UUID fridgeId) {
-        return repository.findByIdAndFridgeId(plannedMealId, fridgeId)
+        return repository.findActiveByIdAndFridgeId(plannedMealId, fridgeId)
                 .orElseThrow(() -> new NotFoundException("Planned meal not found"));
     }
 

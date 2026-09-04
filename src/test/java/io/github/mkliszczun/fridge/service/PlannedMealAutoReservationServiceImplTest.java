@@ -62,7 +62,7 @@ class PlannedMealAutoReservationServiceImplTest {
         FridgeItem item = fridgeItem(
                 "Makaron pełnoziarnisty", "500", Unit.GRAM, LocalDate.now().plusDays(2));
 
-        when(plannedMealRepository.findByIdAndFridgeId(meal.getId(), fridgeId))
+        when(plannedMealRepository.findActiveByIdAndFridgeId(meal.getId(), fridgeId))
                 .thenReturn(Optional.of(meal));
         when(fridgeItemRepository.findActiveByFridge(fridgeId)).thenReturn(List.of(item));
         when(fridgeItemRepository.findActiveByIdAndFridgeForUpdate(item.getId(), fridgeId))
@@ -111,7 +111,7 @@ class PlannedMealAutoReservationServiceImplTest {
         FridgeItem item = fridgeItem("Mleko", "500", Unit.MILLILITER, null);
         PlannedMealReservation existing = reservation(ingredient, item, "150");
 
-        when(plannedMealRepository.findByIdAndFridgeId(meal.getId(), fridgeId))
+        when(plannedMealRepository.findActiveByIdAndFridgeId(meal.getId(), fridgeId))
                 .thenReturn(Optional.of(meal));
         when(fridgeItemRepository.findActiveByFridge(fridgeId)).thenReturn(List.of(item));
         when(fridgeItemRepository.findActiveByIdAndFridgeForUpdate(item.getId(), fridgeId))
@@ -148,7 +148,7 @@ class PlannedMealAutoReservationServiceImplTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessage("Planned meal IDs must be unique");
 
-        verify(plannedMealRepository, never()).findByIdAndFridgeId(
+        verify(plannedMealRepository, never()).findActiveByIdAndFridgeId(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         verify(openAiClient, never()).match(anyList(), anyList());
     }

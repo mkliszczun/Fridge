@@ -64,7 +64,7 @@ public class PlannedMealAutoReservationServiceImpl
         assertUniqueMealIds(request.plannedMealIds());
 
         List<PlannedMeal> meals = request.plannedMealIds().stream()
-                .map(id -> plannedMealRepository.findByIdAndFridgeId(id, fridgeId)
+                .map(id -> plannedMealRepository.findActiveByIdAndFridgeId(id, fridgeId)
                         .orElseThrow(() -> new NotFoundException("Planned meal not found")))
                 .sorted(Comparator.comparing(PlannedMeal::getPlannedDate)
                         .thenComparing(meal -> meal.getId().toString()))
