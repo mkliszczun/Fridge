@@ -53,7 +53,7 @@ class OpenAiBudgetInterceptorTest {
         try (var result = interceptor.intercept(request, body, execution)) {
             assertThat(result.getBody().readAllBytes()).isEqualTo(response);
         }
-        verify(budget).settle(reservation, 1000, 500, 100);
+        verify(budget).settle(reservation, 1000, 500, 500, 100);
         var order = inOrder(budget, execution);
         order.verify(budget).reserve(userId, 0, 4000);
         order.verify(execution).execute(any(), any());
@@ -62,11 +62,12 @@ class OpenAiBudgetInterceptorTest {
     @Test void timeoutAndMissingUsageRetainReservation() throws Exception {
         when(execution.execute(any(), any())).thenThrow(new IOException("timeout"));
         assertThatThrownBy(() -> interceptor.intercept(request, body, execution)).isInstanceOf(IOException.class);
-        verify(budget, never()).settle(any(), anyLong(), anyLong(), anyLong());
-        when(execution.execute(any(), any())).thenReturn(new MockClientHttpResponse("{}".getBytes(StandardCharsets.UTF_8), HttpStatus.OK));
+        verify(budget, never()).settle(any(), anyLong(), anyLong(), anyLong(), anyLong());
+        doReturn(new MockClientHttpResponse("{}".getBytes(StandardCharsets.UTF_8), HttpStatus.OK))
+                .when(execution).execute(any(), any());
         interceptor.intercept(request, body, execution).close();
         verify(budget, times(2)).reserve(userId, 0, 4000);
-        verify(budget, never()).settle(any(), anyLong(), anyLong(), anyLong());
+        verify(budget, never()).settle(any(), anyLong(), anyLong(), anyLong(), anyLong());
     }
 
     @Test void budgetExhaustionAndUnknownPricingNeverCallProvider() throws Exception {

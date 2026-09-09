@@ -17,6 +17,7 @@ public class AiBudgetProperties {
     @NotBlank private String pricedModel = "gpt-5.6-luna";
     @NotNull @DecimalMin("0.000001") private BigDecimal inputPrice = new BigDecimal("0.20");
     @NotNull @DecimalMin("0") private BigDecimal cachedInputPrice = new BigDecimal("0.02");
+    @NotNull @DecimalMin("0.000001") private BigDecimal cacheWritePrice = new BigDecimal("0.25");
     @NotNull @DecimalMin("0.000001") private BigDecimal outputPrice = new BigDecimal("1.20");
     @NotNull @DecimalMin("0.01") @DecimalMax("100") private BigDecimal dailyUsd = new BigDecimal("1.00");
 }

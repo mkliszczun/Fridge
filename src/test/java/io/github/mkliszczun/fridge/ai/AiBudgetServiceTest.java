@@ -43,11 +43,12 @@ class AiBudgetServiceTest {
         TransactionTemplate tx = new TransactionTemplate(transactions);
         assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
             var reserved = budget.reserve(id, 0, 4000);
-            budget.settle(reserved, 1000, 500, 100);
+            budget.settle(reserved, 1000, 500, 200, 100);
             throw new IllegalStateException("AI proposal rejected by domain validation");
         })).isInstanceOf(IllegalStateException.class);
         var result = budget.usage(id);
-        assertThat(result.estimatedCostUsd()).isEqualByComparingTo("0.000230");
+        assertThat(result.estimatedCostUsd()).isEqualByComparingTo("0.000240");
+        assertThat(result.cacheWriteTokens()).isEqualTo(200);
         assertThat(result.inputTokens()).isEqualTo(1000);
         assertThat(result.cachedInputTokens()).isEqualTo(500);
         assertThat(result.outputTokens()).isEqualTo(100);
@@ -72,9 +73,9 @@ class AiBudgetServiceTest {
             for (Future<Boolean> result : pool.invokeAll(tasks, 30, TimeUnit.SECONDS)) {
                 if (result.get()) successful++;
             }
-            assertThat(successful).isEqualTo(28); // 28 * $0.0352; the 29th reservation exceeds $1.
-            assertThat(budget.usage(id).estimatedCostUsd()).isEqualByComparingTo("0.985600");
-            assertThat(budget.usage(id).unsettledRequests()).isEqualTo(28);
+            assertThat(successful).isEqualTo(24); // 24 * $0.0416; the 25th reservation exceeds $1.
+            assertThat(budget.usage(id).estimatedCostUsd()).isEqualByComparingTo("0.998400");
+            assertThat(budget.usage(id).unsettledRequests()).isEqualTo(24);
         } finally { pool.shutdownNow(); }
     }
 
@@ -84,7 +85,7 @@ class AiBudgetServiceTest {
         var reservation = budget.reserve(id, 0, 4000);
         when(clock.instant()).thenReturn(Instant.parse("2026-09-10T00:00:00Z"));
         assertThat(budget.usage(id).estimatedCostUsd()).isZero();
-        budget.settle(reservation, 1000, 0, 1000);
+        budget.settle(reservation, 1000, 0, 0, 1000);
         assertThat(budget.usage(id).estimatedCostUsd()).isZero();
         assertThat(usage.findByUserIdAndUsageDate(id, reservation.date()).orElseThrow().getChargedMicros()).isEqualTo(1400);
         assertThat(budget.reserve(id, 0, 4000).date()).isEqualTo(reservation.date().plusDays(1));

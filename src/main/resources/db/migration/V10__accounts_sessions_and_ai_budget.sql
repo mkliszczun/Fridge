@@ -24,6 +24,7 @@ CREATE TABLE ai_daily_usage (
     charged_micros BIGINT NOT NULL DEFAULT 0 CHECK (charged_micros >= 0),
     input_tokens BIGINT NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
     cached_input_tokens BIGINT NOT NULL DEFAULT 0 CHECK (cached_input_tokens >= 0),
+    cache_write_tokens BIGINT NOT NULL DEFAULT 0 CHECK (cache_write_tokens >= 0),
     output_tokens BIGINT NOT NULL DEFAULT 0 CHECK (output_tokens >= 0),
     unsettled_requests BIGINT NOT NULL DEFAULT 0 CHECK (unsettled_requests >= 0),
     CONSTRAINT uk_ai_usage_user_date UNIQUE(user_id, usage_date)

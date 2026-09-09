@@ -12,10 +12,13 @@ import java.net.URI;
 public class PasswordResetMailer {
     private final ObjectProvider<JavaMailSender> senders;
     private final AccountProperties properties;
+    private final String smtpHost;
 
-    public PasswordResetMailer(ObjectProvider<JavaMailSender> senders, AccountProperties properties) {
+    public PasswordResetMailer(ObjectProvider<JavaMailSender> senders, AccountProperties properties,
+                               @org.springframework.beans.factory.annotation.Value("${spring.mail.host:}") String smtpHost) {
         this.senders = senders;
         this.properties = properties;
+        this.smtpHost = smtpHost;
     }
 
     public void requireConfigured() {
@@ -23,7 +26,7 @@ public class PasswordResetMailer {
             URI uri = URI.create(properties.getResetUrl());
             if (!"https".equals(uri.getScheme()) || uri.getHost() == null
                     || uri.getFragment() != null || uri.getUserInfo() != null
-                    || properties.getMailFrom().isBlank() || senders.getIfAvailable() == null) {
+                    || properties.getMailFrom().isBlank() || smtpHost.isBlank() || senders.getIfAvailable() == null) {
                 throw new IllegalArgumentException();
             }
         } catch (IllegalArgumentException ex) {

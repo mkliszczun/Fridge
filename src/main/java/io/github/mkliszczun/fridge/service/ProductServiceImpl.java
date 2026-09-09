@@ -52,6 +52,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public Product updateShelfLifeAfterOpeningDays(UUID id, Integer shelfLifeAfterOpeningDays) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Product not found: " + id));
@@ -60,6 +61,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public boolean deleteProduct(UUID id) {
         if (!productRepository.existsById(id)) {
             return false;

@@ -17,6 +17,7 @@ public class AiDailyUsage {
     @Column(nullable = false) private long chargedMicros;
     @Column(nullable = false) private long inputTokens;
     @Column(nullable = false) private long cachedInputTokens;
+    @Column(nullable = false) private long cacheWriteTokens;
     @Column(nullable = false) private long outputTokens;
     @Column(nullable = false) private long unsettledRequests;
 }

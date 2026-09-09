@@ -65,7 +65,8 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(expectedStatus);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().timestamp()).isNotNull();
-        assertThat(response.getBody().error()).isEqualTo(exception.getMessage());
+        assertThat(response.getBody().error()).isEqualTo(expectedStatus.is5xxServerError()
+                ? "Service unavailable" : exception.getMessage());
         assertThat(response.getBody().details()).isEmpty();
     }
 

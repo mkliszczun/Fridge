@@ -58,6 +58,8 @@ public class OpenAiBudgetInterceptor implements ClientHttpRequestInterceptor, Re
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Unsupported AI billing configuration");
         }
         var reservation = budget.reserve(user.getId(), user.getTokenVersion(), maxOutput);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) payload).put("service_tier", "default");
+        body = mapper.writeValueAsBytes(payload);
         // A timeout, crash, HTTP error or missing usage retains the conservative reservation.
         ClientHttpResponse response = execution.execute(request, body);
         try {
@@ -65,10 +67,13 @@ public class OpenAiBudgetInterceptor implements ClientHttpRequestInterceptor, Re
             if (response.getStatusCode().is2xxSuccessful()) {
                 JsonNode result = mapper.readTree(bytes);
                 JsonNode usage = result == null ? null : result.get("usage");
-                if (usage != null && usage.path("input_tokens").canConvertToLong()
-                        && usage.path("output_tokens").canConvertToLong()) {
+                if (usage != null && usage.path("input_tokens").isIntegralNumber() && usage.path("input_tokens").canConvertToLong()
+                        && usage.path("output_tokens").isIntegralNumber() && usage.path("output_tokens").canConvertToLong()) {
                     long cached = usage.path("input_tokens_details").path("cached_tokens").asLong(0);
-                    budget.settle(reservation, usage.path("input_tokens").asLong(), cached, usage.path("output_tokens").asLong());
+                    long input = usage.path("input_tokens").asLong();
+                    // Missing cache-write details are charged conservatively at the write rate.
+                    long writes = usage.path("input_tokens_details").path("cache_write_tokens").asLong(input - cached);
+                    budget.settle(reservation, input, cached, writes, usage.path("output_tokens").asLong());
                 }
             }
             return new BufferedResponse(response, bytes);

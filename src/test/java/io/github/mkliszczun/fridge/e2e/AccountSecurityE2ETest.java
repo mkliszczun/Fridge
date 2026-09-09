@@ -227,4 +227,50 @@ class AccountSecurityE2ETest {
                 .andExpect(status().isCreated()).andReturn();
         return UUID.fromString(mapper.readTree(result.getResponse().getContentAsString()).path("id").asText());
     }
+
+    @Test
+    void simultaneousRefreshCannotProduceTwoValidSessions() throws Exception {
+        Account user = register();
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try {
+            java.util.concurrent.Callable<org.springframework.test.web.servlet.MvcResult> refresh = () -> {
+                start.await();
+                return mvc.perform(json(post("/auth/refresh"), Map.of("refreshToken", user.refresh()))).andReturn();
+            };
+            var first = pool.submit(refresh);
+            var second = pool.submit(refresh);
+            start.countDown();
+            var a = first.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            var b = second.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(List.of(a.getResponse().getStatus(), b.getResponse().getStatus())).containsExactlyInAnyOrder(200, 401);
+            var success = a.getResponse().getStatus() == 200 ? a : b;
+            String access = mapper.readTree(success.getResponse().getContentAsString()).path("token").asText();
+            mvc.perform(get("/api/me").header("Authorization", "Bearer " + access)).andExpect(status().isUnauthorized());
+        } finally { pool.shutdownNow(); }
+    }
+
+    @Test
+    void expiredAccessAndRefreshTokensAreRejected() throws Exception {
+        Account user = register();
+        jdbc.update("update refresh_token set expires_at = ? where user_id = ?",
+                java.sql.Timestamp.from(Instant.now().minusSeconds(1)), user.id());
+        mvc.perform(json(post("/auth/refresh"), Map.of("refreshToken", user.refresh()))).andExpect(status().isUnauthorized());
+        var properties = new io.github.mkliszczun.fridge.util.JwtProperties();
+        properties.setSecret("MySuperStrongTestSecretKeyWithAtLeast32Chars123");
+        properties.setExpiration(-1000);
+        String expired = new JwtUtil(properties).generateToken(user.email(), user.id(), List.of("USER"));
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + expired)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void mailFailureDoesNotRevealAccountOrConsumeResetCooldown() throws Exception {
+        Account user = register();
+        doThrow(new org.springframework.mail.MailSendException("SMTP failed"))
+                .when(mailer).send(eq(user.email()), anyString());
+        mvc.perform(json(post("/auth/password/forgot"), Map.of("email", user.email()))).andExpect(status().isAccepted());
+        var entity = users.findById(user.id()).orElseThrow();
+        assertThat(entity.getPasswordResetHash()).isNull();
+        assertThat(entity.getPasswordResetRequestedAt()).isNull();
+    }
 }

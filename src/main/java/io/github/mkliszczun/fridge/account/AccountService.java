@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Service
+@lombok.extern.slf4j.Slf4j
 public class AccountService {
     public record Tokens(String token, String refreshToken, long expiresIn) {}
     public record Profile(UUID id, String email, String plan, Instant premiumUntil, boolean adsEnabled) {}
@@ -88,7 +89,11 @@ public class AccountService {
             if (token == null) return null;
             UserEntity user = users.findLockedById(token.getUserId()).orElse(null);
             if (user == null) return null;
-            entityManager.refresh(token); // Another request may have rotated it while waiting for the user lock.
+            try {
+                entityManager.refresh(token); // Another request may have rotated it while waiting for the user lock.
+            } catch (jakarta.persistence.EntityNotFoundException ex) {
+                return null; // Expiry cleanup raced with refresh.
+            }
             if (!token.getExpiresAt().isAfter(clock.instant()) || token.getTokenVersion() != user.getTokenVersion()) return null;
             if (token.isUsed()) {
                 user.revokeSessions();
@@ -107,7 +112,8 @@ public class AccountService {
 
     public void forgotPassword(String email) {
         mailer.requireConfigured(); // Same response for existing/unknown addresses when mail is unavailable.
-        tx.executeWithoutResult(status -> users.findByEmail(email).ifPresent(candidate -> {
+        try {
+            tx.executeWithoutResult(status -> users.findByEmail(email).ifPresent(candidate -> {
             UserEntity user = locked(candidate.getId());
             Instant now = clock.instant();
             if (!user.isEnabled() || (user.getPasswordResetRequestedAt() != null
@@ -117,7 +123,11 @@ public class AccountService {
             user.setPasswordResetExpiresAt(now.plus(Duration.ofMinutes(30)));
             user.setPasswordResetRequestedAt(now);
             mailer.send(user.getEmail(), secret);
-        }));
+            }));
+        } catch (org.springframework.mail.MailException ex) {
+            // The transaction rolled back. Never disclose account existence or SMTP details to the caller.
+            log.warn("Password reset mail delivery failed");
+        }
     }
 
     public void resetPassword(String secret, String password) {

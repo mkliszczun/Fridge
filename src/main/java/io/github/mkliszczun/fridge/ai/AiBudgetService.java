@@ -19,7 +19,7 @@ public class AiBudgetService {
     public static final long MAX_INPUT_TOKENS = 128_000;
     public record Reservation(UUID userId, LocalDate date, long micros, int maxOutputTokens) {}
     public record Usage(LocalDate date, Instant resetsAt, BigDecimal limitUsd, BigDecimal estimatedCostUsd,
-                        BigDecimal remainingUsd, long inputTokens, long cachedInputTokens, long outputTokens,
+                        BigDecimal remainingUsd, long inputTokens, long cachedInputTokens, long cacheWriteTokens, long outputTokens,
                         long unsettledRequests) {}
     private final AiDailyUsageRepository usage;
     private final UserRepository users;
@@ -46,7 +46,9 @@ public class AiBudgetService {
             fresh.setUsageDate(date);
             return fresh;
         });
-        long reserve = costMicros(MAX_INPUT_TOKENS, 0, maxOutputTokens);
+        long reserve = prices.getInputPrice().max(prices.getCacheWritePrice()).multiply(BigDecimal.valueOf(MAX_INPUT_TOKENS))
+                .add(prices.getOutputPrice().multiply(BigDecimal.valueOf(maxOutputTokens)))
+                .setScale(0, RoundingMode.CEILING).longValueExact();
         long limit = prices.getDailyUsd().movePointRight(6).longValueExact();
         if (day.getChargedMicros() + reserve > limit) {
             long seconds = Math.max(1, Duration.between(clock.instant(), date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)).toSeconds());
@@ -59,13 +61,14 @@ public class AiBudgetService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void settle(Reservation reservation, long input, long cached, long output) {
-        if (input < 0 || cached < 0 || cached > input || output < 0) return;
+    public void settle(Reservation reservation, long input, long cached, long writes, long output) {
+        if (input < 0 || cached < 0 || cached > input || writes < 0 || writes > input - cached || output < 0) return;
         if (users.findLockedById(reservation.userId()).isEmpty()) return; // Account deleted during provider call.
         usage.findByUserIdAndUsageDate(reservation.userId(), reservation.date()).ifPresent(day -> {
-            day.setChargedMicros(day.getChargedMicros() - reservation.micros() + costMicros(input, cached, output));
+            day.setChargedMicros(day.getChargedMicros() - reservation.micros() + costMicros(input, cached, writes, output));
             day.setInputTokens(day.getInputTokens() + input);
             day.setCachedInputTokens(day.getCachedInputTokens() + cached);
+            day.setCacheWriteTokens(day.getCacheWriteTokens() + writes);
             day.setOutputTokens(day.getOutputTokens() + output);
             day.setUnsettledRequests(day.getUnsettledRequests() - 1);
         });
@@ -78,13 +81,14 @@ public class AiBudgetService {
         BigDecimal charged = BigDecimal.valueOf(day.getChargedMicros(), 6);
         return new Usage(date, date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC), prices.getDailyUsd(), charged,
                 prices.getDailyUsd().subtract(charged).max(BigDecimal.ZERO), day.getInputTokens(),
-                day.getCachedInputTokens(), day.getOutputTokens(), day.getUnsettledRequests());
+                day.getCachedInputTokens(), day.getCacheWriteTokens(), day.getOutputTokens(), day.getUnsettledRequests());
     }
 
-    private long costMicros(long input, long cached, long output) {
+    private long costMicros(long input, long cached, long writes, long output) {
         // USD/million tokens multiplied by token count yields micro-USD. Round upwards, never floating point.
-        return prices.getInputPrice().multiply(BigDecimal.valueOf(input - cached))
+        return prices.getInputPrice().multiply(BigDecimal.valueOf(input - cached - writes))
                 .add(prices.getCachedInputPrice().multiply(BigDecimal.valueOf(cached)))
+                .add(prices.getCacheWritePrice().multiply(BigDecimal.valueOf(writes)))
                 .add(prices.getOutputPrice().multiply(BigDecimal.valueOf(output)))
                 .setScale(0, RoundingMode.CEILING).longValueExact();
     }
