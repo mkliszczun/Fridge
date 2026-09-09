@@ -12,6 +12,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
 
 @Component
 @RequiredArgsConstructor
@@ -19,13 +20,27 @@ public class JwtUtil {
 
     private final JwtProperties jwtProperties;
 
+    @jakarta.annotation.PostConstruct
+    void validateConfiguration() {
+        getSigningKey();
+        if (jwtProperties.getExpiration() <= 0) throw new IllegalStateException("JWT expiration must be positive");
+    }
+
     private SecretKey getSigningKey(){
-        return new SecretKeySpec(jwtProperties.getSecret().getBytes(), "HmacSHA256");
+        return io.jsonwebtoken.security.Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateToken(String username, UUID userId, List<String> roles){
+        return generateToken(username, userId, roles, 0);
+    }
+
+    public String generateToken(String username, UUID userId, List<String> roles, long version){
         return Jwts.builder()
+                .setIssuer("fridge")
+                .setId(UUID.randomUUID().toString())
                 .setSubject(username)
+                .claim("type", "access")
+                .claim("ver", version)
                 .claim("uid", userId != null ? userId.toString() : null)
                 .claim("roles", roles)
                 .setIssuedAt(new Date())
@@ -73,7 +88,7 @@ public class JwtUtil {
         return (uid == null || uid.isBlank()) ? Optional.empty() : Optional.of(UUID.fromString(uid));
     }
 
-    private Claims parser(String token){
+    public Claims parser(String token){
         return Jwts.parserBuilder().setSigningKey(getSigningKey()).build()
                 .parseClaimsJws(token).getBody();
     }

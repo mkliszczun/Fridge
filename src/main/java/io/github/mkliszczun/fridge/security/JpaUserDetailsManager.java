@@ -84,6 +84,8 @@ public class JpaUserDetailsManager implements UserDetailsManager {
                 .collect(Collectors.toSet());
         entity.setRoles(roles);
 
+        entity.revokeSessions();
+
         repo.save(entity);
     }
 

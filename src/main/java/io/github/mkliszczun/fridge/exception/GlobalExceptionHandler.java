@@ -35,7 +35,11 @@ public class GlobalExceptionHandler {
 
         HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
 
-        if (ex instanceof EntityNotFoundException) {
+        if (ex instanceof org.springframework.security.core.AuthenticationException) {
+            status = HttpStatus.UNAUTHORIZED;
+        } else if (ex instanceof org.springframework.security.access.AccessDeniedException) {
+            status = HttpStatus.FORBIDDEN;
+        } else if (ex instanceof EntityNotFoundException) {
             status = HttpStatus.NOT_FOUND;
         } else if (ex instanceof ResponseStatusException rse) {
             status = HttpStatus.valueOf(rse.getStatusCode().value());
@@ -46,8 +50,11 @@ public class GlobalExceptionHandler {
             }
         }
 
-        return ResponseEntity
-                .status(status)
-                .body(ErrorResponse.of(ex.getMessage()));
+        var response = ResponseEntity.status(status);
+        if (ex instanceof ResponseStatusException rse) {
+            response.headers(rse.getHeaders());
+        }
+        return response.body(ErrorResponse.of(status.is5xxServerError() ? "Service unavailable"
+                : status == HttpStatus.UNAUTHORIZED ? "Authentication failed" : ex.getMessage()));
     }
 }
