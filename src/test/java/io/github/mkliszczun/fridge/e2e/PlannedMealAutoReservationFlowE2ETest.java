@@ -27,6 +27,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -98,8 +99,52 @@ class PlannedMealAutoReservationFlowE2ETest {
                         .content(request))
                 .andExpect(status().isForbidden());
 
-        assertThat(reservationRepository.count()).isEqualTo(1);
+        assertThat(reservationRepository.existsByPlannedMealIngredientIdAndFridgeItemId(
+                ingredientId, fridgeItemId)).isTrue();
         verify(openAiClient, times(1)).match(anyList(), anyList());
+    }
+
+    @Test
+    void deletingPlannedMealReleasesItsReservation() throws Exception {
+        String ownerToken = register();
+        UUID fridgeId = createFridge(ownerToken);
+        UUID recipeId = createRecipe(ownerToken);
+        JsonNode meal = createPlannedMeal(ownerToken, fridgeId, recipeId);
+        UUID mealId = UUID.fromString(meal.get("id").asText());
+        UUID ingredientId = UUID.fromString(
+                meal.get("recipe").get("ingredients").get(0).get("id").asText());
+        UUID fridgeItemId = createFridgeItem(ownerToken, fridgeId);
+
+        mvc.perform(post(
+                        "/api/fridges/{fridgeId}/planned-meals/{plannedMealId}/reservations",
+                        fridgeId, mealId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of(
+                                "plannedMealIngredientId", ingredientId,
+                                "fridgeItemId", fridgeItemId,
+                                "amount", 600
+                        ))))
+                .andExpect(status().isCreated());
+
+        mvc.perform(get("/api/fridge-items/{fridgeId}", fridgeId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].reservedAmount").value(600));
+
+        mvc.perform(delete("/api/fridges/{fridgeId}/planned-meals/{plannedMealId}",
+                        fridgeId, mealId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+
+        assertThat(reservationRepository.existsByPlannedMealIngredientIdAndFridgeItemId(
+                ingredientId, fridgeItemId)).isFalse();
+
+        mvc.perform(get("/api/fridge-items/{fridgeId}", fridgeId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].reservedAmount").value(0))
+                .andExpect(jsonPath("$[0].availableAmount").value(1000));
     }
 
     private String register() throws Exception {
