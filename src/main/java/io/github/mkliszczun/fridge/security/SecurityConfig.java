@@ -33,7 +33,10 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer :: disable)
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "index.html", "/js/**", "/css/**", "/integration/**").permitAll()
+                        .requestMatchers("/auth/login", "/auth/register", "/auth/refresh",
+                                "/auth/password/forgot", "/auth/password/reset",
+                                "/reset-password.html", "/reset-password.js",
+                                "/index.html", "/js/**", "/css/**", "/integration/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

@@ -36,18 +36,30 @@ public class JwtFilter extends OncePerRequestFilter {
 
             String token = authHeader.substring(7);
 
-            if (jwtUtil.validateToken(token)) {
-                var userDetails = jwtUtil.extractUserId(token)
-                        .<AppUserDetails>map(userDetailsService::loadById)
-                        .orElseGet(() -> (AppUserDetails) userDetailsService
-                                .loadUserByUsername(jwtUtil.extractUsername(token)));
+            try {
+                var claims = jwtUtil.parser(token);
+                if (!"fridge".equals(claims.getIssuer()) || !"access".equals(claims.get("type"))
+                        || claims.getExpiration() == null || claims.get("ver") == null || claims.get("uid") == null) {
+                    throw new IllegalArgumentException("Invalid access token");
+                }
+                var userDetails = userDetailsService.loadById(
+                        java.util.UUID.fromString(claims.get("uid", String.class)));
+                new org.springframework.security.authentication.AccountStatusUserDetailsChecker().check(userDetails);
+                if (claims.get("ver", Number.class).longValue() != userDetails.getTokenVersion()) {
+                    throw new IllegalArgumentException("Revoked access token");
+                }
 
                 var authToken = new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities());
 
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
-             }
+            } catch (io.jsonwebtoken.JwtException | IllegalArgumentException
+                     | org.springframework.security.core.AuthenticationException ex) {
+                SecurityContextHolder.clearContext();
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
         }
 
         filterChain.doFilter(request, response);

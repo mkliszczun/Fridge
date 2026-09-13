@@ -18,6 +18,9 @@ public class AppUserDetails implements UserDetails {
     private final boolean accountNonExpired;
     private final boolean accountNonLocked;
     private final boolean credentialsNonExpired;
+    private long tokenVersion;
+
+    public long getTokenVersion() { return tokenVersion; }
 
     public AppUserDetails(UUID id,
                           String username,
@@ -42,7 +45,7 @@ public class AppUserDetails implements UserDetails {
                 .map(r -> new SimpleGrantedAuthority("ROLE_" + r.name()))
                 .collect(Collectors.toSet());
 
-        return new AppUserDetails(
+        AppUserDetails details = new AppUserDetails(
                 u.getId(),
                 u.getUsername(),
                 u.getPassword(),
@@ -52,6 +55,8 @@ public class AppUserDetails implements UserDetails {
                 u.isAccountNonLocked(),
                 u.isCredentialsNonExpired()
         );
+        details.tokenVersion = u.getTokenVersion();
+        return details;
     }
 
     public UUID getId() {

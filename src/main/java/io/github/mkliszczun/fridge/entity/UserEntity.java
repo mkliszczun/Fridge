@@ -2,6 +2,7 @@ package io.github.mkliszczun.fridge.entity;
 
 import io.github.mkliszczun.fridge.enums.Role;
 import jakarta.persistence.*;
+import java.time.Instant;
 import java.util.*;
 import static jakarta.persistence.FetchType.EAGER;
 
@@ -32,6 +33,24 @@ public class UserEntity {
     private boolean accountNonExpired = true;
     private boolean accountNonLocked = true;
     private boolean credentialsNonExpired = true;
+
+    @Column(nullable = false)
+    private long tokenVersion = 0;
+    private Instant premiumUntil;
+    private String passwordResetHash;
+    private Instant passwordResetExpiresAt;
+    private Instant passwordResetRequestedAt;
+
+    public long getTokenVersion() { return tokenVersion; }
+    public void revokeSessions() { tokenVersion++; }
+    public Instant getPremiumUntil() { return premiumUntil; }
+    public void setPremiumUntil(Instant value) { premiumUntil = value; }
+    public String getPasswordResetHash() { return passwordResetHash; }
+    public void setPasswordResetHash(String value) { passwordResetHash = value; }
+    public Instant getPasswordResetExpiresAt() { return passwordResetExpiresAt; }
+    public void setPasswordResetExpiresAt(Instant value) { passwordResetExpiresAt = value; }
+    public Instant getPasswordResetRequestedAt() { return passwordResetRequestedAt; }
+    public void setPasswordResetRequestedAt(Instant value) { passwordResetRequestedAt = value; }
 
     public UUID getId() {
         return id;

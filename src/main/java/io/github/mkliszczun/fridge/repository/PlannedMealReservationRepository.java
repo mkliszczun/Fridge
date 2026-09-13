@@ -26,6 +26,7 @@ public interface PlannedMealReservationRepository extends JpaRepository<PlannedM
             select coalesce(sum(reservation.amount), 0)
             from PlannedMealReservation reservation
             where reservation.fridgeItem.id = :fridgeItemId
+              and reservation.plannedMealIngredient.plannedMeal.completedAt is null
             """)
     BigDecimal sumReservedAmount(UUID fridgeItemId);
 }

@@ -110,12 +110,12 @@ class FlowE2ETest {
                 .andExpect(jsonPath("$.bestBeforeDate").value(changedBestBeforeDate.toString()))
                 .andExpect(jsonPath("$.effectiveExpireAt").value(changedBestBeforeDate.toString()));
 
-        // 7) USED PRODUCT CANNOT BE DELETED
+        // 7) USER CANNOT DELETE CATALOG PRODUCTS
         mvc.perform(delete("/api/products/{id}", productId)
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isConflict());
+                .andExpect(status().isForbidden());
 
-        // 8) UNUSED PRODUCT CAN BE DELETED
+        // 8) THE SAME PERMISSION APPLIES TO UNUSED PRODUCTS
         var unusedProductRes = mvc.perform(post("/api/products")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -132,7 +132,7 @@ class FlowE2ETest {
 
         mvc.perform(delete("/api/products/{id}", unusedProductId)
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isForbidden());
 
         // 9) USE PART OF SEALED ITEM
         mvc.perform(post("/api/fridge-items/{id}/use", itemId)

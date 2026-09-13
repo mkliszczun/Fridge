@@ -17,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -125,7 +126,35 @@ class PlannedMealCompletionFlowE2ETest {
         assertThat(consumedCheese.getState()).isEqualTo(ItemState.CONSUMED);
         assertThat(consumedCheese.getArchivedAt()).isNotNull();
         assertThat(plannedMealRepository.findById(mealId).orElseThrow().getCompletedAt()).isNotNull();
-        assertThat(reservationRepository.count()).isZero();
+        assertThat(reservationRepository.existsByPlannedMealIngredientIdAndFridgeItemId(
+                milkIngredientId, milkItemId)).isFalse();
+        assertThat(reservationRepository.existsByPlannedMealIngredientIdAndFridgeItemId(
+                cheeseIngredientId, cheeseItemId)).isFalse();
+    }
+
+    @Test
+    void reservedAmountIgnoresExistingReservationOfCompletedMeal() throws Exception {
+        String ownerToken = register();
+        UUID fridgeId = createFridge(ownerToken);
+        UUID recipeId = createRecipe(ownerToken);
+        JsonNode meal = createPlannedMeal(ownerToken, fridgeId, recipeId);
+        UUID mealId = UUID.fromString(meal.get("id").asText());
+        UUID ingredientId = ingredientId(meal, 0);
+        UUID fridgeItemId = createFridgeItem(
+                ownerToken, fridgeId, "Mleko 3,2%", 1000, "MILLILITER");
+        createReservation(ownerToken, fridgeId, mealId, ingredientId, fridgeItemId, 600);
+
+        var completedMeal = plannedMealRepository.findById(mealId).orElseThrow();
+        completedMeal.setCompletedAt(OffsetDateTime.now());
+        plannedMealRepository.saveAndFlush(completedMeal);
+
+        assertThat(reservationRepository.existsByPlannedMealIngredientIdAndFridgeItemId(
+                ingredientId, fridgeItemId)).isTrue();
+        mvc.perform(get("/api/fridge-items/{fridgeId}", fridgeId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].reservedAmount").value(0))
+                .andExpect(jsonPath("$[0].availableAmount").value(1000));
     }
 
     private String register() throws Exception {

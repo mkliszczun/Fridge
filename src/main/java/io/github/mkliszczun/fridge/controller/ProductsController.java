@@ -40,6 +40,7 @@ public class ProductsController {
     }
 
     @PatchMapping("/{id}/shelf-life-after-opening")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public AddProductResponse updateShelfLifeAfterOpening(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateShelfLifeAfterOpeningRequest request) {
@@ -64,6 +65,7 @@ public class ProductsController {
     }
 
     @DeleteMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {
         if (!productService.deleteProduct(id)) {
