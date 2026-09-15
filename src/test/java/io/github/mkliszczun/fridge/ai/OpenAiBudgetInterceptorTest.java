@@ -11,8 +11,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.mock.http.client.MockClientHttpResponse;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -42,10 +45,14 @@ class OpenAiBudgetInterceptorTest {
         body = mapper.writeValueAsBytes(Map.of("model", "gpt-5.6-luna", "input", "Milk", "instructions", "Recipe", "max_output_tokens", 4000));
         var principal = new AppUserDetails(userId, "test", "unused", Set.of(), true, true, true, true);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
-        when(budget.reserve(userId, 0, 4000)).thenReturn(reservation);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
+        when(budget.reserve(eq(userId), eq(0L), eq(4000), anyBoolean())).thenReturn(reservation);
     }
 
-    @AfterEach void clear() { SecurityContextHolder.clearContext(); }
+    @AfterEach void clear() {
+        SecurityContextHolder.clearContext();
+        RequestContextHolder.resetRequestAttributes();
+    }
 
     @Test void metersBeforeSchemaParsingAndPreservesResponseBody() throws Exception {
         byte[] response = "{\"output\":[],\"usage\":{\"input_tokens\":1000,\"output_tokens\":100,\"input_tokens_details\":{\"cached_tokens\":500}}}".getBytes(StandardCharsets.UTF_8);
@@ -55,23 +62,24 @@ class OpenAiBudgetInterceptorTest {
         }
         verify(budget).settle(reservation, 1000, 500, 500, 100);
         var order = inOrder(budget, execution);
-        order.verify(budget).reserve(userId, 0, 4000);
+        order.verify(budget).reserve(userId, 0, 4000, true);
         order.verify(execution).execute(any(), any());
     }
 
-    @Test void timeoutAndMissingUsageRetainReservation() throws Exception {
+    @Test void timeoutAndRetryRetainReservationsButCountOneUse() throws Exception {
         when(execution.execute(any(), any())).thenThrow(new IOException("timeout"));
         assertThatThrownBy(() -> interceptor.intercept(request, body, execution)).isInstanceOf(IOException.class);
         verify(budget, never()).settle(any(), anyLong(), anyLong(), anyLong(), anyLong());
         doReturn(new MockClientHttpResponse("{}".getBytes(StandardCharsets.UTF_8), HttpStatus.OK))
                 .when(execution).execute(any(), any());
         interceptor.intercept(request, body, execution).close();
-        verify(budget, times(2)).reserve(userId, 0, 4000);
+        verify(budget).reserve(userId, 0, 4000, true);
+        verify(budget).reserve(userId, 0, 4000, false);
         verify(budget, never()).settle(any(), anyLong(), anyLong(), anyLong(), anyLong());
     }
 
     @Test void budgetExhaustionAndUnknownPricingNeverCallProvider() throws Exception {
-        when(budget.reserve(userId, 0, 4000)).thenThrow(new AiBudgetExceededException(60));
+        when(budget.reserve(userId, 0, 4000, true)).thenThrow(new AiBudgetExceededException(60));
         assertThatThrownBy(() -> interceptor.intercept(request, body, execution)).isInstanceOf(AiBudgetExceededException.class);
         byte[] unknownModel = mapper.writeValueAsBytes(Map.of("model", "unknown-model"));
         assertThatThrownBy(() -> interceptor.intercept(request, unknownModel, execution))

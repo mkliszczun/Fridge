@@ -19,5 +19,7 @@ public class AiBudgetProperties {
     @NotNull @DecimalMin("0") private BigDecimal cachedInputPrice = new BigDecimal("0.02");
     @NotNull @DecimalMin("0.000001") private BigDecimal cacheWritePrice = new BigDecimal("0.25");
     @NotNull @DecimalMin("0.000001") private BigDecimal outputPrice = new BigDecimal("1.20");
-    @NotNull @DecimalMin("0.01") @DecimalMax("100") private BigDecimal dailyUsd = new BigDecimal("1.00");
+    @NotNull @DecimalMin("0.01") @DecimalMax("100") private BigDecimal freeDailyUsd = new BigDecimal("0.10");
+    @Min(1) @Max(1000) private int freeDailyUses = 3;
+    @NotNull @DecimalMin("0.01") @DecimalMax("100") private BigDecimal premiumDailyUsd = new BigDecimal("0.50");
 }

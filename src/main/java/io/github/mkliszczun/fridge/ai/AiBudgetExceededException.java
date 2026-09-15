@@ -8,7 +8,7 @@ public class AiBudgetExceededException extends ResponseStatusException {
     private final HttpHeaders headers = new HttpHeaders();
 
     public AiBudgetExceededException(long retryAfterSeconds) {
-        super(HttpStatus.TOO_MANY_REQUESTS, "Daily AI budget exhausted");
+        super(HttpStatus.TOO_MANY_REQUESTS, "Daily AI limit exhausted");
         headers.set(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds));
     }
 

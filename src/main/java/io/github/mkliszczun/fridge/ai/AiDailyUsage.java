@@ -20,4 +20,5 @@ public class AiDailyUsage {
     @Column(nullable = false) private long cacheWriteTokens;
     @Column(nullable = false) private long outputTokens;
     @Column(nullable = false) private long unsettledRequests;
+    @Column(nullable = false) private long useCount;
 }

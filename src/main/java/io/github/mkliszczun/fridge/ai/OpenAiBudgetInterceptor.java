@@ -14,6 +14,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.server.ResponseStatusException;
 import java.io.*;
 import java.net.URI;
@@ -21,6 +23,7 @@ import java.net.URI;
 /** Installed on every Spring-managed RestClient.Builder, covering all four AI clients and each retry. */
 @Component
 public class OpenAiBudgetInterceptor implements ClientHttpRequestInterceptor, RestClientCustomizer {
+    private static final String USE_COUNTED_ATTRIBUTE = OpenAiBudgetInterceptor.class.getName() + ".useCounted";
     private final AiBudgetService budget;
     private final AiBudgetProperties prices;
     private final OpenAiProperties openAi;
@@ -57,7 +60,13 @@ public class OpenAiBudgetInterceptor implements ClientHttpRequestInterceptor, Re
                 || (payload.has("service_tier") && !"default".equals(payload.path("service_tier").asText()))) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Unsupported AI billing configuration");
         }
-        var reservation = budget.reserve(user.getId(), user.getTokenVersion(), maxOutput);
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+        boolean newUse = requestAttributes == null
+                || requestAttributes.getAttribute(USE_COUNTED_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST) == null;
+        var reservation = budget.reserve(user.getId(), user.getTokenVersion(), maxOutput, newUse);
+        if (newUse && requestAttributes != null) {
+            requestAttributes.setAttribute(USE_COUNTED_ATTRIBUTE, Boolean.TRUE, RequestAttributes.SCOPE_REQUEST);
+        }
         ((com.fasterxml.jackson.databind.node.ObjectNode) payload).put("service_tier", "default");
         body = mapper.writeValueAsBytes(payload);
         // A timeout, crash, HTTP error or missing usage retains the conservative reservation.

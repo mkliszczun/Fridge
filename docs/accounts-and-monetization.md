@@ -16,7 +16,7 @@ Wszystkie prywatne endpointy wymagają `Authorization: Bearer <token>`.
 | `POST /auth/password/reset` | `{"token":"...","password":"..."}` → 204. Jednorazowy link ważny 30 minut; stare sesje zostają unieważnione. |
 | `GET /api/me` | `id`, `email`, `plan` (`FREE`/`PREMIUM`), `premiumUntil`, `adsEnabled`. |
 | `DELETE /api/me` | `{"password":"aktualne hasło"}` → 204. Wymaga zalogowania i ponownego podania hasła. |
-| `GET /api/me/ai-usage` | Data UTC, czas odnowienia limitu, limit i szacowany koszt USD, pozostały budżet, tokeny wejściowe/odczytu cache/zapisu cache/wyjściowe oraz liczba nierozliczonych rezerwacji. |
+| `GET /api/me/ai-usage` | Data UTC, czas odnowienia limitu, limit i szacowany koszt USD, pozostały budżet, liczba użyć i ich limit (`null` dla PREMIUM), tokeny wejściowe/odczytu cache/zapisu cache/wyjściowe oraz liczba nierozliczonych rezerwacji. |
 | `PUT /admin/users/{id}/premium` | ADMIN: `{"premiumUntil":"2026-10-01T00:00:00Z"}` nadaje premium; `{"premiumUntil":null}` je odbiera. Data musi być przyszła. |
 
 Para tokenów ma postać `{"token":"JWT","refreshToken":"opaque-secret","expiresIn":900}`. Pole `token` zachowuje zgodność z dotychczasowym logowaniem. Domyślnie JWT jest ważny 15 minut, a sesja odświeżania ma nieprzedłużany termin 30 dni od logowania. Aplikacja powinna przechowywać refresh token w bezpiecznym magazynie systemowym, zapisywać nowy token po odświeżeniu i wykonywać tylko jedno odświeżanie naraz. Ponowne użycie zużytego refresh tokenu unieważnia wszystkie sesje konta. Jeśli odpowiedź odświeżania zginie w sieci, potrzebne będzie ponowne logowanie.
@@ -33,7 +33,7 @@ Operacja jest transakcyjna: usuwa konto, role, tokeny, reset hasła, statystyki 
 
 ## Rozliczanie OpenAI
 
-Domyślny limit to **1 USD na konto na dzień UTC**, jednakowy dla FREE i PREMIUM. Każda próba wywołania każdego z czterech klientów OpenAI wymaga rezerwacji budżetu w osobnej transakcji. Dotyczy to także ponowień po błędnej odpowiedzi i sytuacji, w której późniejsza walidacja odrzuci wygenerowane dane. Blokada w bazie serializuje rezerwacje danego użytkownika między instancjami aplikacji.
+Konto FREE ma maksymalnie **3 użycia i 0,10 USD na dzień UTC**; przekroczenie dowolnego limitu blokuje następne użycie. Konto PREMIUM nie ma limitu liczby użyć, lecz ma limit **0,50 USD na dzień UTC**. Jedno żądanie użytkownika zużywa jedno użycie niezależnie od automatycznych ponowień OpenAI. Każda próba wywołania każdego z czterech klientów OpenAI nadal wymaga osobnej rezerwacji kosztu, także po błędnej odpowiedzi i wtedy, gdy późniejsza walidacja odrzuci wygenerowane dane. Blokada w bazie serializuje rezerwacje danego użytkownika między instancjami aplikacji.
 
 Model domyślny: `gpt-5.6-luna`, standardowy tryb przetwarzania. Stawki z [cennika OpenAI](https://developers.openai.com/api/docs/pricing), sprawdzone 2026-09-09: 0,20 USD / mln tokenów wejściowych, 0,02 USD / mln odczytów cache, 0,25 USD / mln zapisów cache, 1,20 USD / mln tokenów wyjściowych. Zapis cache jest osobną kategorią kosztu zgodnie z [dokumentacją prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching).
 
@@ -56,7 +56,8 @@ To limit szacowanego kosztu API, a nie gwarancja wysokości faktury z podatkami 
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | Klucz po stronie backendu, model domyślnie `gpt-5.6-luna`. |
 | `OPENAI_PRICED_MODEL` | Identyfikator modelu, do którego odnoszą się poniższe ceny. |
 | `OPENAI_INPUT_PRICE`, `OPENAI_CACHED_INPUT_PRICE`, `OPENAI_CACHE_WRITE_PRICE`, `OPENAI_OUTPUT_PRICE` | USD za milion tokenów: domyślnie `0.20`, `0.02`, `0.25`, `1.20`. |
-| `AI_DAILY_BUDGET_USD` | Domyślnie `1.00`. |
+| `AI_FREE_DAILY_BUDGET_USD`, `AI_FREE_DAILY_USES` | Limity FREE, domyślnie `0.10` USD i `3` użycia. |
+| `AI_PREMIUM_DAILY_BUDGET_USD` | Limit PREMIUM, domyślnie `0.50` USD; liczba użyć jest nieograniczona. |
 
 Link resetu zawiera token w fragmencie URL, który nie trafia do żądania serwera. Strona usuwa go z paska adresu, nie używa zewnętrznych zasobów i przesyła token z nowym hasłem przez POST. Backend zapisuje tylko SHA-256 losowego tokenu i nie zwraca go w odpowiedzi endpointu forgot. Wygasłe refresh tokeny i hashe resetu są czyszczone co godzinę. Wysyłkę poczty trzeba sprawdzić na środowisku testowym przed premierą; testy automatyczne nie wysyłają prawdziwych wiadomości.
 

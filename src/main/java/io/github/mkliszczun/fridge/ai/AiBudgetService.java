@@ -19,8 +19,8 @@ public class AiBudgetService {
     public static final long MAX_INPUT_TOKENS = 128_000;
     public record Reservation(UUID userId, LocalDate date, long micros, int maxOutputTokens) {}
     public record Usage(LocalDate date, Instant resetsAt, BigDecimal limitUsd, BigDecimal estimatedCostUsd,
-                        BigDecimal remainingUsd, long inputTokens, long cachedInputTokens, long cacheWriteTokens, long outputTokens,
-                        long unsettledRequests) {}
+                        BigDecimal remainingUsd, long uses, Integer useLimit, long inputTokens, long cachedInputTokens,
+                        long cacheWriteTokens, long outputTokens, long unsettledRequests) {}
     private final AiDailyUsageRepository usage;
     private final UserRepository users;
     private final AiBudgetProperties prices;
@@ -34,12 +34,13 @@ public class AiBudgetService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Reservation reserve(UUID userId, long tokenVersion, int maxOutputTokens) {
+    public Reservation reserve(UUID userId, long tokenVersion, int maxOutputTokens, boolean newUse) {
         if (maxOutputTokens < 1 || maxOutputTokens > 8192) throw new IllegalArgumentException("Invalid output limit");
         var user = users.findLockedById(userId).orElseThrow(() -> new BadCredentialsException("Account unavailable"));
         new AccountStatusUserDetailsChecker().check(AppUserDetails.fromEntity(user));
         if (user.getTokenVersion() != tokenVersion) throw new BadCredentialsException("Session revoked");
-        LocalDate date = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC);
+        Instant now = clock.instant();
+        LocalDate date = LocalDate.ofInstant(now, ZoneOffset.UTC);
         AiDailyUsage day = usage.findByUserIdAndUsageDate(userId, date).orElseGet(() -> {
             AiDailyUsage fresh = new AiDailyUsage();
             fresh.setUserId(userId);
@@ -49,13 +50,13 @@ public class AiBudgetService {
         long reserve = prices.getInputPrice().max(prices.getCacheWritePrice()).multiply(BigDecimal.valueOf(MAX_INPUT_TOKENS))
                 .add(prices.getOutputPrice().multiply(BigDecimal.valueOf(maxOutputTokens)))
                 .setScale(0, RoundingMode.CEILING).longValueExact();
-        long limit = prices.getDailyUsd().movePointRight(6).longValueExact();
-        if (day.getChargedMicros() + reserve > limit) {
-            long seconds = Math.max(1, Duration.between(clock.instant(), date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)).toSeconds());
-            throw new AiBudgetExceededException(seconds);
-        }
+        boolean premium = isPremium(user.getPremiumUntil(), now);
+        long limit = dailyLimit(premium).movePointRight(6).longValueExact();
+        if ((newUse && !premium && day.getUseCount() >= prices.getFreeDailyUses())
+                || day.getChargedMicros() + reserve > limit) throw limitExceeded(now, date);
         day.setChargedMicros(day.getChargedMicros() + reserve);
         day.setUnsettledRequests(day.getUnsettledRequests() + 1);
+        if (newUse) day.setUseCount(day.getUseCount() + 1);
         usage.save(day);
         return new Reservation(userId, date, reserve, maxOutputTokens);
     }
@@ -76,12 +77,31 @@ public class AiBudgetService {
 
     @Transactional(readOnly = true)
     public Usage usage(UUID userId) {
-        LocalDate date = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC);
+        Instant now = clock.instant();
+        var user = users.findById(userId).orElseThrow(() -> new BadCredentialsException("Account unavailable"));
+        boolean premium = isPremium(user.getPremiumUntil(), now);
+        BigDecimal limit = dailyLimit(premium);
+        LocalDate date = LocalDate.ofInstant(now, ZoneOffset.UTC);
         AiDailyUsage day = usage.findByUserIdAndUsageDate(userId, date).orElseGet(AiDailyUsage::new);
         BigDecimal charged = BigDecimal.valueOf(day.getChargedMicros(), 6);
-        return new Usage(date, date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC), prices.getDailyUsd(), charged,
-                prices.getDailyUsd().subtract(charged).max(BigDecimal.ZERO), day.getInputTokens(),
-                day.getCachedInputTokens(), day.getCacheWriteTokens(), day.getOutputTokens(), day.getUnsettledRequests());
+        return new Usage(date, date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC), limit, charged,
+                limit.subtract(charged).max(BigDecimal.ZERO), day.getUseCount(),
+                premium ? null : prices.getFreeDailyUses(), day.getInputTokens(), day.getCachedInputTokens(),
+                day.getCacheWriteTokens(), day.getOutputTokens(), day.getUnsettledRequests());
+    }
+
+    private BigDecimal dailyLimit(boolean premium) {
+        return premium ? prices.getPremiumDailyUsd() : prices.getFreeDailyUsd();
+    }
+
+    private boolean isPremium(Instant premiumUntil, Instant now) {
+        return premiumUntil != null && premiumUntil.isAfter(now);
+    }
+
+    private AiBudgetExceededException limitExceeded(Instant now, LocalDate date) {
+        long seconds = Math.max(1, Duration.between(now,
+                date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)).toSeconds());
+        return new AiBudgetExceededException(seconds);
     }
 
     private long costMicros(long input, long cached, long writes, long output) {
