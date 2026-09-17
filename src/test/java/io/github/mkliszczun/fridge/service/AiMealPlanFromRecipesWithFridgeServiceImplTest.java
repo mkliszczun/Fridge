@@ -55,6 +55,8 @@ class AiMealPlanFromRecipesWithFridgeServiceImplTest {
     @InjectMocks
     private AiMealPlanFromRecipesWithFridgeServiceImpl service;
 
+    @org.mockito.Spy private AiInventoryPolicy inventoryPolicy = new AiInventoryPolicy(java.time.Clock.systemUTC());
+
     @Test
     void generate_sendsRecipesAndAvailableInventoryOrderedByExpiration() {
         UUID fridgeId = UUID.randomUUID();
@@ -67,12 +69,14 @@ class AiMealPlanFromRecipesWithFridgeServiceImplTest {
                 "Jajka", "4", Unit.PIECE, LocalDate.now().plusDays(1));
         FridgeItem fullyReservedItem = fridgeItem(
                 "Ser", "100", Unit.GRAM, LocalDate.now().plusDays(2));
+        FridgeItem expiredItem = fridgeItem("Stare mleko", "1000", Unit.MILLILITER,
+                LocalDate.now(java.time.ZoneOffset.UTC).minusDays(1));
         AiMealPlanFromRecipesGenerateRequest request = request(2);
 
         when(recipeRepository.findAllByOwnerUserIdOrderByNameAsc(userId))
                 .thenReturn(List.of(firstRecipe, secondRecipe));
         when(fridgeItemRepository.findActiveByFridge(fridgeId))
-                .thenReturn(List.of(laterItem, fullyReservedItem, urgentItem));
+                .thenReturn(List.of(laterItem, fullyReservedItem, urgentItem, expiredItem));
         when(reservationRepository.sumReservedAmount(laterItem.getId()))
                 .thenReturn(new BigDecimal("50"));
         when(reservationRepository.sumReservedAmount(urgentItem.getId()))

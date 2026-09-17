@@ -165,10 +165,10 @@ class PlannedMealFlowE2ETest {
         mvc.perform(put("/api/fridges/{fridgeId}/planned-meals/{plannedMealId}", fridgeId, plannedMealId)
                         .header("Authorization", "Bearer " + member.token())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(plannedMealUpdateRequest(changedDate, 4))))
+                        .content(json(plannedMealUpdateRequest(changedDate, 2))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.plannedDate").value(changedDate.toString()))
-                .andExpect(jsonPath("$.servings").value(4));
+                .andExpect(jsonPath("$.servings").value(2));
 
         mvc.perform(get("/api/fridges/{fridgeId}/planned-meals", fridgeId)
                         .header("Authorization", "Bearer " + outsider.token()))

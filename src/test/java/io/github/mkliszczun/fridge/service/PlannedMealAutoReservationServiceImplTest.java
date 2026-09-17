@@ -53,6 +53,9 @@ class PlannedMealAutoReservationServiceImplTest {
     @InjectMocks
     private PlannedMealAutoReservationServiceImpl service;
 
+    @Mock private FridgeWriteLock writeLock;
+    @org.mockito.Spy private AiInventoryPolicy inventoryPolicy = new AiInventoryPolicy(java.time.Clock.systemUTC());
+
     @Test
     void reserve_scalesIngredientAndUsesOnlyCurrentlyAvailableAmount() {
         UUID fridgeId = UUID.randomUUID();

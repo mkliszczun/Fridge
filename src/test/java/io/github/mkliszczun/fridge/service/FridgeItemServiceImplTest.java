@@ -39,6 +39,8 @@ class FridgeItemServiceImplTest {
     @Mock
     ProductRepository productRepository;
     @Mock EffectiveExpirePolicy expirePolicy;
+    @Mock FridgeWriteLock writeLock;
+    @Mock InventoryReservationReconciler reconciler;
 
     FridgeItemService service;
 
@@ -54,7 +56,7 @@ class FridgeItemServiceImplTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new FridgeItemServiceImpl(
-                itemRepository, fridgeRepository, memberRepository, productRepository, expirePolicy);
+                itemRepository, fridgeRepository, memberRepository, productRepository, expirePolicy, writeLock, reconciler);
 
         fridge = new Fridge();
         setId(fridge, "id", fridgeId);

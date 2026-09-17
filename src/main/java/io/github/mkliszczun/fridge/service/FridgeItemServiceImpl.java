@@ -29,17 +29,22 @@ public class FridgeItemServiceImpl implements FridgeItemService{
     private final FridgeMemberRepository memberRepository;
     private final ProductRepository productRepository;
     private final EffectiveExpirePolicy expirePolicy;
+    private final FridgeWriteLock writeLock;
+    private final InventoryReservationReconciler reconciler;
 
     public FridgeItemServiceImpl(FridgeItemRepository itemRepository,
                              FridgeRepository fridgeRepository,
                              FridgeMemberRepository memberRepository,
                              ProductRepository productRepository,
-                             EffectiveExpirePolicy expirePolicy) {
+                             EffectiveExpirePolicy expirePolicy, FridgeWriteLock writeLock,
+                             InventoryReservationReconciler reconciler) {
         this.itemRepository = itemRepository;
         this.fridgeRepository = fridgeRepository;
         this.memberRepository = memberRepository;
         this.productRepository = productRepository;
         this.expirePolicy = expirePolicy;
+        this.writeLock = writeLock;
+        this.reconciler = reconciler;
     }
 
     @Override
@@ -54,6 +59,7 @@ public class FridgeItemServiceImpl implements FridgeItemService{
     public FridgeItem createItem(UUID fridgeId, UUID currentUserId, UUID productId, String customName, BigDecimal amount, Unit unit, LocalDate bestBeforeDate, LocalDate openDate) {
 
         assertMembership(fridgeId, currentUserId);
+        writeLock.lockFridge(fridgeId);
         Fridge fridge = fridgeRepository.findById(fridgeId)
                 .orElseThrow(() -> new NotFoundException("Fridge not found"));
 
@@ -88,6 +94,7 @@ public class FridgeItemServiceImpl implements FridgeItemService{
     @Override
     @Transactional
     public FridgeItem openItem(UUID itemId, UUID currentUserId, LocalDate openDate) {
+        writeLock.lockItem(itemId);
         FridgeItem item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
 
@@ -106,6 +113,7 @@ public class FridgeItemServiceImpl implements FridgeItemService{
     @Override
     @Transactional
     public FridgeItem useItem(UUID itemId, UUID currentUserId, BigDecimal amountUsed) {
+        writeLock.lockItem(itemId);
         FridgeItem item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
         assertMembership(item.getFridge().getId(), currentUserId);
@@ -128,6 +136,7 @@ public class FridgeItemServiceImpl implements FridgeItemService{
             item.setState(ItemState.CONSUMED);
             item.setArchivedAt(OffsetDateTime.now());
         }
+        reconciler.reconcile(item);
 
         return itemRepository.save(item);
     }
@@ -135,10 +144,16 @@ public class FridgeItemServiceImpl implements FridgeItemService{
     @Override
     @Transactional
     public FridgeItem updateAmount(UUID itemId, UUID currentUserId, BigDecimal newAmount) {
+        writeLock.lockItem(itemId);
         FridgeItem item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
         assertMembership(item.getFridge().getId(), currentUserId);
+        assertActive(item, "updated");
+        if (newAmount == null || newAmount.signum() < 0) {
+            throw new ConflictException("Amount must be zero or greater");
+        }
         item.setAmount(newAmount);
+        reconciler.reconcile(item);
         return itemRepository.save(item);
     }
 
@@ -146,6 +161,7 @@ public class FridgeItemServiceImpl implements FridgeItemService{
     @Transactional
     public FridgeItem updateBestBeforeDate(
             UUID itemId, UUID currentUserId, LocalDate bestBeforeDate) {
+        writeLock.lockItem(itemId);
         FridgeItem item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
         assertMembership(item.getFridge().getId(), currentUserId);
@@ -170,13 +186,16 @@ public class FridgeItemServiceImpl implements FridgeItemService{
     }
 
     @Override
+    @Transactional
     public void archiveWithState(UUID itemId, UUID currentUserId, ItemState state) {
+        writeLock.lockItem(itemId);
         FridgeItem item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
         assertMembership(item.getFridge().getId(), currentUserId);
 
         item.setState(state);
         item.setArchivedAt(OffsetDateTime.now());
+        reconciler.reconcile(item);
         itemRepository.save(item);
     }
 

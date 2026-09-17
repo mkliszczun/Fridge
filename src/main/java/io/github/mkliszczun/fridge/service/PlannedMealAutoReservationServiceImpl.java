@@ -40,18 +40,22 @@ public class PlannedMealAutoReservationServiceImpl
     private final FridgeItemRepository fridgeItemRepository;
     private final PlannedMealReservationRepository reservationRepository;
     private final FridgeService fridgeService;
+    private final FridgeWriteLock writeLock;
+    private final AiInventoryPolicy inventoryPolicy;
 
     public PlannedMealAutoReservationServiceImpl(
             OpenAiShoppingListClient openAiClient,
             PlannedMealRepository plannedMealRepository,
             FridgeItemRepository fridgeItemRepository,
             PlannedMealReservationRepository reservationRepository,
-            FridgeService fridgeService) {
+            FridgeService fridgeService, FridgeWriteLock writeLock, AiInventoryPolicy inventoryPolicy) {
         this.openAiClient = openAiClient;
         this.plannedMealRepository = plannedMealRepository;
         this.fridgeItemRepository = fridgeItemRepository;
         this.reservationRepository = reservationRepository;
         this.fridgeService = fridgeService;
+        this.writeLock = writeLock;
+        this.inventoryPolicy = inventoryPolicy;
     }
 
     @Override
@@ -70,7 +74,8 @@ public class PlannedMealAutoReservationServiceImpl
                         .thenComparing(meal -> meal.getId().toString()))
                 .toList();
         List<IngredientNeed> needs = ingredientNeeds(meals);
-        List<FridgeItem> fridgeItems = fridgeItemRepository.findActiveByFridge(fridgeId);
+        List<FridgeItem> fridgeItems = fridgeItemRepository.findActiveByFridge(fridgeId).stream()
+                .filter(inventoryPolicy::usable).toList();
         Map<UUID, BigDecimal> availableAmounts = availableAmounts(fridgeItems);
 
         List<ShoppingListIngredientCandidate> ingredientCandidates = needs.stream()
@@ -99,9 +104,34 @@ public class PlannedMealAutoReservationServiceImpl
             return meals;
         }
 
+        Map<UUID, Integer> originalServings = new HashMap<>();
+        meals.forEach(meal -> originalServings.put(meal.getId(), meal.getServings()));
+        Set<UUID> originalIngredients = needs.stream().map(need -> need.ingredient().getId())
+                .collect(java.util.stream.Collectors.toSet());
         List<ShoppingListIngredientMatch> matches = generateValidMatches(
                 ingredientCandidates, fridgeItemCandidates, needs);
-        createReservations(fridgeId, needs, matches);
+        // No write locks during the provider call. Re-read under lock, never allocate from its old snapshot.
+        writeLock.lockFridge(fridgeId);
+        meals.forEach(writeLock::refreshAfterAi);
+        // Refresh items referenced by existing reservations too: their date/stock may have changed during AI.
+        Map<UUID, FridgeItem> currentItems = new LinkedHashMap<>();
+        fridgeItems.forEach(item -> currentItems.put(item.getId(), item));
+        meals.stream().flatMap(meal -> meal.getIngredients().stream())
+                .flatMap(ingredient -> ingredient.getReservations().stream())
+                .map(PlannedMealReservation::getFridgeItem)
+                .forEach(item -> currentItems.put(item.getId(), item));
+        currentItems.values().forEach(writeLock::refreshAfterAi);
+        if (meals.stream().anyMatch(meal -> meal.getCompletedAt() != null
+                || !meal.getServings().equals(originalServings.get(meal.getId())))) {
+            throw new ConflictException("Meal changed while generating reservations; retry");
+        }
+        List<IngredientNeed> currentNeeds = ingredientNeeds(meals);
+        Set<UUID> currentIngredients = currentNeeds.stream().map(need -> need.ingredient().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        if (!originalIngredients.equals(currentIngredients)) {
+            throw new ConflictException("Meal ingredients changed while generating reservations; retry");
+        }
+        createReservations(fridgeId, currentNeeds, matches);
         return meals;
     }
 
@@ -127,8 +157,9 @@ public class PlannedMealAutoReservationServiceImpl
                         ? quantity.amount().setScale(0, RoundingMode.CEILING)
                         : quantity.amount();
                 BigDecimal reservedAmount = ingredient.getReservations().stream()
+                        .filter(reservation -> inventoryPolicy.usable(reservation.getFridgeItem()))
                         .filter(reservation -> reservation.getFridgeItem().getUnit() == quantity.unit())
-                        .map(PlannedMealReservation::getAmount)
+                        .map(reservation -> reservation.getAmount().min(reservation.getFridgeItem().getAmount()))
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
                 needs.add(new IngredientNeed(
                         ingredient,
@@ -252,6 +283,10 @@ public class PlannedMealAutoReservationServiceImpl
                             .findActiveByIdAndFridgeForUpdate(itemId, fridgeId)
                             .orElseThrow(() -> new ConflictException(
                                     "Fridge inventory changed while creating reservations"));
+                    writeLock.refreshAfterAi(item);
+                    if (!inventoryPolicy.usable(item)) {
+                        throw new ConflictException("Fridge item expired or was archived while generating reservations");
+                    }
                     lockedItems.put(itemId, item);
                     BigDecimal reserved = reservationRepository.sumReservedAmount(itemId);
                     remainingAmounts.put(itemId,

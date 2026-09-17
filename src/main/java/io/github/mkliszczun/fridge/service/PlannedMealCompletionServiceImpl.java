@@ -35,16 +35,23 @@ public class PlannedMealCompletionServiceImpl implements PlannedMealCompletionSe
     private final FridgeItemRepository fridgeItemRepository;
     private final FridgeService fridgeService;
     private final EffectiveExpirePolicy expirePolicy;
+    private final FridgeWriteLock writeLock;
+    private final ShoppingListServiceImpl shoppingLists;
+    private final InventoryReservationReconciler reconciler;
 
     public PlannedMealCompletionServiceImpl(
             PlannedMealRepository plannedMealRepository,
             FridgeItemRepository fridgeItemRepository,
             FridgeService fridgeService,
-            EffectiveExpirePolicy expirePolicy) {
+            EffectiveExpirePolicy expirePolicy, FridgeWriteLock writeLock,
+            ShoppingListServiceImpl shoppingLists, InventoryReservationReconciler reconciler) {
         this.plannedMealRepository = plannedMealRepository;
         this.fridgeItemRepository = fridgeItemRepository;
         this.fridgeService = fridgeService;
         this.expirePolicy = expirePolicy;
+        this.writeLock = writeLock;
+        this.shoppingLists = shoppingLists;
+        this.reconciler = reconciler;
     }
 
     @Override
@@ -52,6 +59,7 @@ public class PlannedMealCompletionServiceImpl implements PlannedMealCompletionSe
     public PlannedMealCompletionResponse complete(
             UUID fridgeId, UUID plannedMealId, UUID userId) {
         fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         PlannedMeal plannedMeal = plannedMealRepository
                 .findByIdAndFridgeIdForUpdate(plannedMealId, fridgeId)
                 .orElseThrow(() -> new NotFoundException("Planned meal not found"));
@@ -77,6 +85,9 @@ public class PlannedMealCompletionServiceImpl implements PlannedMealCompletionSe
         ingredients.forEach(ingredient -> ingredient.getReservations().clear());
         plannedMeal.setCompletedAt(completedAt);
         plannedMealRepository.save(plannedMeal);
+        shoppingLists.invalidateMealSources(fridgeId, ingredients.stream()
+                .map(PlannedMealIngredient::getId).collect(java.util.stream.Collectors.toSet()));
+        lockedItems.values().forEach(reconciler::reconcile);
 
         return new PlannedMealCompletionResponse(
                 plannedMeal.getId(), completedAt, List.copyOf(warnings));

@@ -8,6 +8,10 @@ primary_region = 'ams'
 
 [build]
 
+[env]
+  # Public traffic must enter via Fly's HTTP handler (which supplies Fly-Client-IP).
+  ABUSE_TRUST_FLY_PROXY = 'true'
+
 [http_service]
   internal_port = 8080
   force_https = true

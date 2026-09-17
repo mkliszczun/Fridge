@@ -6,9 +6,17 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.math.BigDecimal;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 public interface PlannedMealReservationRepository extends JpaRepository<PlannedMealReservation, UUID> {
+    @Query("""
+            select r from PlannedMealReservation r
+            where r.fridgeItem.id = :itemId and r.plannedMealIngredient.plannedMeal.completedAt is null
+            order by r.plannedMealIngredient.plannedMeal.plannedDate,
+                     r.plannedMealIngredient.plannedMeal.id, r.plannedMealIngredient.position, r.id
+            """)
+    List<PlannedMealReservation> findActiveForItem(UUID itemId);
 
     Optional<PlannedMealReservation> findByIdAndPlannedMealIngredientPlannedMealId(
             UUID id,

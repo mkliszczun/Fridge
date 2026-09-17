@@ -54,6 +54,8 @@ class AiShoppingListServiceImplTest {
     @InjectMocks
     private AiShoppingListServiceImpl service;
 
+    @org.mockito.Spy private AiInventoryPolicy inventoryPolicy = new AiInventoryPolicy(java.time.Clock.systemUTC());
+
     @Test
     void generate_scalesIngredientsAndSubtractsFreeAndReservedAmounts() {
         UUID fridgeId = UUID.randomUUID();

@@ -31,23 +31,29 @@ public class PlannedMealServiceImpl implements PlannedMealService {
     private final FridgeItemRepository fridgeItemRepository;
     private final RecipeRepository recipeRepository;
     private final FridgeService fridgeService;
+    private final FridgeWriteLock writeLock;
+    private final ShoppingListServiceImpl shoppingLists;
 
     public PlannedMealServiceImpl(PlannedMealRepository repository,
                                   PlannedMealReservationRepository reservationRepository,
                                   FridgeItemRepository fridgeItemRepository,
                                   RecipeRepository recipeRepository,
-                                  FridgeService fridgeService) {
+                                  FridgeService fridgeService, FridgeWriteLock writeLock,
+                                  ShoppingListServiceImpl shoppingLists) {
         this.repository = repository;
         this.reservationRepository = reservationRepository;
         this.fridgeItemRepository = fridgeItemRepository;
         this.recipeRepository = recipeRepository;
         this.fridgeService = fridgeService;
+        this.writeLock = writeLock;
+        this.shoppingLists = shoppingLists;
     }
 
     @Override
     @Transactional
     public PlannedMeal create(UUID fridgeId, UUID userId, PlannedMealCreateRequest request) {
         Fridge fridge = fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         Recipe recipe = findOwnedRecipe(request.recipeId(), userId);
 
         PlannedMeal plannedMeal = new PlannedMeal();
@@ -78,13 +84,21 @@ public class PlannedMealServiceImpl implements PlannedMealService {
     @Transactional
     public PlannedMeal update(UUID fridgeId, UUID plannedMealId, UUID userId, PlannedMealUpdateRequest request) {
         fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         PlannedMeal plannedMeal = findPlannedMeal(plannedMealId, fridgeId);
 
         UUID sourceRecipeId = plannedMeal.getSourceRecipe() == null
                 ? null
                 : plannedMeal.getSourceRecipe().getId();
-        if (request.recipeId() != null && !request.recipeId().equals(sourceRecipeId)) {
+        boolean recipeChanged = request.recipeId() != null && !request.recipeId().equals(sourceRecipeId);
+        boolean servingsChanged = !request.servings().equals(plannedMeal.getServings());
+        if (recipeChanged || servingsChanged) {
+            invalidateShoppingSources(fridgeId, plannedMeal);
+        }
+        if (recipeChanged) {
             plannedMeal.snapshotRecipe(findOwnedRecipe(request.recipeId(), userId));
+        } else if (servingsChanged) {
+            plannedMeal.renewIngredientSnapshot();
         }
         plannedMeal.setPlannedDate(request.plannedDate());
         plannedMeal.setServings(request.servings());
@@ -95,7 +109,10 @@ public class PlannedMealServiceImpl implements PlannedMealService {
     @Transactional
     public void delete(UUID fridgeId, UUID plannedMealId, UUID userId) {
         fridgeService.requireMembership(fridgeId, userId);
-        repository.delete(findPlannedMeal(plannedMealId, fridgeId));
+        writeLock.lockFridge(fridgeId);
+        PlannedMeal meal = findPlannedMeal(plannedMealId, fridgeId);
+        invalidateShoppingSources(fridgeId, meal);
+        repository.delete(meal);
     }
 
     @Override
@@ -103,6 +120,7 @@ public class PlannedMealServiceImpl implements PlannedMealService {
     public PlannedMealReservation createReservation(UUID fridgeId, UUID plannedMealId, UUID userId,
                                                     PlannedMealReservationRequest request) {
         fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         PlannedMeal plannedMeal = findPlannedMeal(plannedMealId, fridgeId);
         PlannedMealIngredient ingredient = findIngredient(plannedMeal, request.plannedMealIngredientId());
         FridgeItem fridgeItem = findActiveFridgeItemForUpdate(request.fridgeItemId(), fridgeId);
@@ -125,6 +143,7 @@ public class PlannedMealServiceImpl implements PlannedMealService {
     public PlannedMealReservation updateReservation(UUID fridgeId, UUID plannedMealId, UUID reservationId,
                                                     UUID userId, PlannedMealReservationUpdateRequest request) {
         fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         findPlannedMeal(plannedMealId, fridgeId);
         PlannedMealReservation reservation = findReservation(reservationId, plannedMealId);
         FridgeItem fridgeItem = findActiveFridgeItemForUpdate(reservation.getFridgeItem().getId(), fridgeId);
@@ -138,6 +157,7 @@ public class PlannedMealServiceImpl implements PlannedMealService {
     @Transactional
     public void deleteReservation(UUID fridgeId, UUID plannedMealId, UUID reservationId, UUID userId) {
         fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         findPlannedMeal(plannedMealId, fridgeId);
         PlannedMealReservation reservation = findReservation(reservationId, plannedMealId);
         reservation.getPlannedMealIngredient().removeReservation(reservation);
@@ -147,6 +167,11 @@ public class PlannedMealServiceImpl implements PlannedMealService {
     private PlannedMeal findPlannedMeal(UUID plannedMealId, UUID fridgeId) {
         return repository.findActiveByIdAndFridgeId(plannedMealId, fridgeId)
                 .orElseThrow(() -> new NotFoundException("Planned meal not found"));
+    }
+
+    private void invalidateShoppingSources(UUID fridgeId, PlannedMeal meal) {
+        shoppingLists.invalidateMealSources(fridgeId, meal.getIngredients().stream()
+                .map(PlannedMealIngredient::getId).collect(java.util.stream.Collectors.toSet()));
     }
 
     private Recipe findOwnedRecipe(UUID recipeId, UUID userId) {

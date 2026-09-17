@@ -34,18 +34,20 @@ public class AiMealPlanFromRecipesWithFridgeServiceImpl
     private final FridgeItemRepository fridgeItemRepository;
     private final PlannedMealReservationRepository reservationRepository;
     private final FridgeService fridgeService;
+    private final AiInventoryPolicy inventoryPolicy;
 
     public AiMealPlanFromRecipesWithFridgeServiceImpl(
             OpenAiMealPlanWithFridgeClient openAiClient,
             RecipeRepository recipeRepository,
             FridgeItemRepository fridgeItemRepository,
             PlannedMealReservationRepository reservationRepository,
-            FridgeService fridgeService) {
+            FridgeService fridgeService, AiInventoryPolicy inventoryPolicy) {
         this.openAiClient = openAiClient;
         this.recipeRepository = recipeRepository;
         this.fridgeItemRepository = fridgeItemRepository;
         this.reservationRepository = reservationRepository;
         this.fridgeService = fridgeService;
+        this.inventoryPolicy = inventoryPolicy;
     }
 
     @Override
@@ -68,6 +70,7 @@ public class AiMealPlanFromRecipesWithFridgeServiceImpl
                 .toList();
         List<MealPlanFridgeItemCandidate> fridgeItemCandidates = fridgeItemRepository
                 .findActiveByFridge(fridgeId).stream()
+                .filter(inventoryPolicy::usable)
                 .map(this::toFridgeItemCandidate)
                 .filter(candidate -> candidate.availableAmount().signum() > 0)
                 .sorted(Comparator

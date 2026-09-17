@@ -40,17 +40,19 @@ public class AiShoppingListServiceImpl implements AiShoppingListService {
     private final FridgeItemRepository fridgeItemRepository;
     private final PlannedMealReservationRepository reservationRepository;
     private final FridgeService fridgeService;
+    private final AiInventoryPolicy inventoryPolicy;
 
     public AiShoppingListServiceImpl(OpenAiShoppingListClient openAiClient,
                                      PlannedMealRepository plannedMealRepository,
                                      FridgeItemRepository fridgeItemRepository,
                                      PlannedMealReservationRepository reservationRepository,
-                                     FridgeService fridgeService) {
+                                     FridgeService fridgeService, AiInventoryPolicy inventoryPolicy) {
         this.openAiClient = openAiClient;
         this.plannedMealRepository = plannedMealRepository;
         this.fridgeItemRepository = fridgeItemRepository;
         this.reservationRepository = reservationRepository;
         this.fridgeService = fridgeService;
+        this.inventoryPolicy = inventoryPolicy;
     }
 
     @Override
@@ -67,7 +69,8 @@ public class AiShoppingListServiceImpl implements AiShoppingListService {
                         .orElseThrow(() -> new NotFoundException("Planned meal not found")))
                 .toList();
         List<IngredientNeed> needs = toIngredientNeeds(meals);
-        List<FridgeItem> fridgeItems = fridgeItemRepository.findActiveByFridge(fridgeId);
+        List<FridgeItem> fridgeItems = fridgeItemRepository.findActiveByFridge(fridgeId).stream()
+                .filter(inventoryPolicy::usable).toList();
         Map<UUID, BigDecimal> availableAmounts = availableAmounts(fridgeItems);
 
         List<ShoppingListIngredientCandidate> ingredientCandidates = needs.stream()
@@ -232,7 +235,9 @@ public class AiShoppingListServiceImpl implements AiShoppingListService {
         Map<ShoppingItemKey, ShoppingItemAccumulator> shoppingItems = new LinkedHashMap<>();
         for (IngredientNeed need : needs) {
             if (need.normalizedQuantity() == null) {
-                if (need.amount() == null && !need.ingredient().getReservations().isEmpty()) {
+                if (need.amount() == null && need.ingredient().getReservations().stream()
+                        .anyMatch(reservation -> inventoryPolicy.usable(reservation.getFridgeItem())
+                                && reservation.getFridgeItem().getAmount().signum() > 0)) {
                     continue;
                 }
                 addShoppingItem(shoppingItems, need, need.amount(), need.unit());
@@ -264,8 +269,9 @@ public class AiShoppingListServiceImpl implements AiShoppingListService {
 
     private BigDecimal existingReservedAmount(IngredientNeed need, Unit unit) {
         return need.ingredient().getReservations().stream()
+                .filter(reservation -> inventoryPolicy.usable(reservation.getFridgeItem()))
                 .filter(reservation -> reservation.getFridgeItem().getUnit() == unit)
-                .map(reservation -> reservation.getAmount())
+                .map(reservation -> reservation.getAmount().min(reservation.getFridgeItem().getAmount()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 

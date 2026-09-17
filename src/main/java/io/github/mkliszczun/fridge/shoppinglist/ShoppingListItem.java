@@ -45,6 +45,10 @@ public class ShoppingListItem extends Audit {
     @Column(name = "manual_amount", precision = 19, scale = 3)
     private BigDecimal manualAmount;
 
+    @Column(name = "has_manual_entry", nullable = false)
+    @org.hibernate.annotations.ColumnDefault("false")
+    private boolean hasManualEntry;
+
     @Column(length = 64)
     private String unit;
 
@@ -64,6 +68,8 @@ public class ShoppingListItem extends Audit {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public BigDecimal getManualAmount() { return manualAmount; }
+    public boolean isHasManualEntry() { return hasManualEntry; }
+    public void setHasManualEntry(boolean hasManualEntry) { this.hasManualEntry = hasManualEntry; }
     public void setManualAmount(BigDecimal manualAmount) { this.manualAmount = manualAmount; }
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }

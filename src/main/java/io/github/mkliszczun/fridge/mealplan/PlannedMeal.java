@@ -122,6 +122,23 @@ public class PlannedMeal extends Audit {
         });
     }
 
+    /** New IDs reject stale AI proposals/imports; orphan removal releases the old reservations. */
+    public void renewIngredientSnapshot() {
+        List<PlannedMealIngredient> previous = List.copyOf(ingredients);
+        ingredients.clear();
+        previous.forEach(source -> {
+            PlannedMealIngredient snapshot = new PlannedMealIngredient();
+            snapshot.setPlannedMeal(this);
+            snapshot.setName(source.getName());
+            snapshot.setAmount(source.getAmount());
+            snapshot.setUnit(source.getUnit());
+            snapshot.setOptional(source.isOptional());
+            snapshot.setNote(source.getNote());
+            snapshot.setPosition(source.getPosition());
+            ingredients.add(snapshot);
+        });
+    }
+
     public LocalDate getPlannedDate() {
         return plannedDate;
     }

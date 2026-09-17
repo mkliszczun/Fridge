@@ -43,6 +43,8 @@ class ShoppingListServiceImplTest {
     @InjectMocks
     private ShoppingListServiceImpl service;
 
+    @Mock private FridgeWriteLock writeLock;
+
     @Test
     void addItem_mergesAmountIntoMatchingUncheckedItem() {
         UUID fridgeId = UUID.randomUUID();

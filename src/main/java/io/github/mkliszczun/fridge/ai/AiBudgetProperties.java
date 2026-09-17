@@ -14,6 +14,8 @@ import org.springframework.validation.annotation.Validated;
 @Getter
 @Setter
 public class AiBudgetProperties {
+    private boolean enabled = true;
+    @NotNull @DecimalMin("0.01") @DecimalMax("10000") private BigDecimal globalDailyUsd = new BigDecimal("10.00");
     @NotBlank private String pricedModel = "gpt-5.6-luna";
     @NotNull @DecimalMin("0.000001") private BigDecimal inputPrice = new BigDecimal("0.20");
     @NotNull @DecimalMin("0") private BigDecimal cachedInputPrice = new BigDecimal("0.02");

@@ -29,13 +29,15 @@ public class ShoppingListServiceImpl implements ShoppingListService {
     private final ShoppingListItemRepository itemRepository;
     private final PlannedMealIngredientRepository ingredientRepository;
     private final FridgeService fridgeService;
+    private final FridgeWriteLock writeLock;
 
     public ShoppingListServiceImpl(ShoppingListItemRepository itemRepository,
                                    PlannedMealIngredientRepository ingredientRepository,
-                                   FridgeService fridgeService) {
+                                   FridgeService fridgeService, FridgeWriteLock writeLock) {
         this.itemRepository = itemRepository;
         this.ingredientRepository = ingredientRepository;
         this.fridgeService = fridgeService;
+        this.writeLock = writeLock;
     }
 
     @Override
@@ -50,6 +52,7 @@ public class ShoppingListServiceImpl implements ShoppingListService {
     public ShoppingListItem addItem(UUID fridgeId, UUID userId, String name,
                                     BigDecimal amount, String unit) {
         Fridge fridge = fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         List<ShoppingListItem> items = new ArrayList<>(
                 itemRepository.findAllByFridgeIdOrderByCheckedAscCreatedAtAsc(fridgeId));
         boolean quantified = amount != null;
@@ -63,6 +66,7 @@ public class ShoppingListServiceImpl implements ShoppingListService {
                     : item.getManualAmount();
             item.setManualAmount(cleanAmount(current.add(amount)));
         }
+        item.setHasManualEntry(true);
         return itemRepository.save(item);
     }
 
@@ -71,6 +75,7 @@ public class ShoppingListServiceImpl implements ShoppingListService {
     public List<ShoppingListItem> importProposal(
             UUID fridgeId, UUID userId, ShoppingListImportRequest request) {
         Fridge fridge = fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         Map<UUID, PlannedMealIngredient> ingredients = validateSources(fridgeId, request);
         List<ShoppingListItem> items = new ArrayList<>(
                 itemRepository.findAllByFridgeIdOrderByCheckedAscCreatedAtAsc(fridgeId));
@@ -117,6 +122,7 @@ public class ShoppingListServiceImpl implements ShoppingListService {
     public ShoppingListItem setChecked(
             UUID fridgeId, UUID itemId, UUID userId, boolean checked) {
         fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         ShoppingListItem item = findItem(fridgeId, itemId);
         item.setChecked(checked);
         return itemRepository.save(item);
@@ -126,6 +132,7 @@ public class ShoppingListServiceImpl implements ShoppingListService {
     @Transactional
     public void deleteItem(UUID fridgeId, UUID itemId, UUID userId) {
         fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         itemRepository.delete(findItem(fridgeId, itemId));
     }
 
@@ -133,12 +140,24 @@ public class ShoppingListServiceImpl implements ShoppingListService {
     @Transactional
     public void deleteCheckedItems(UUID fridgeId, UUID userId) {
         fridgeService.requireMembership(fridgeId, userId);
+        writeLock.lockFridge(fridgeId);
         List<ShoppingListItem> checkedItems = itemRepository
                 .findAllByFridgeIdOrderByCheckedAscCreatedAtAsc(fridgeId)
                 .stream()
                 .filter(ShoppingListItem::isChecked)
                 .toList();
         itemRepository.deleteAll(checkedItems);
+    }
+
+    @Transactional
+    public void invalidateMealSources(UUID fridgeId, Set<UUID> ingredientIds) {
+        writeLock.lockFridge(fridgeId);
+        for (ShoppingListItem item : itemRepository.findAllByFridgeIdOrderByCheckedAscCreatedAtAsc(fridgeId)) {
+            boolean removed = item.getSources().removeIf(source -> ingredientIds.contains(source.getPlannedMealIngredientId()));
+            if (removed && item.getSources().isEmpty() && !item.isHasManualEntry()) {
+                itemRepository.delete(item);
+            }
+        }
     }
 
     private Map<UUID, PlannedMealIngredient> validateSources(
@@ -160,7 +179,8 @@ public class ShoppingListServiceImpl implements ShoppingListService {
                 .forEach(ingredient -> ingredients.put(ingredient.getId(), ingredient));
         boolean allBelongToFridge = ingredients.size() == requestedIds.size()
                 && ingredients.values().stream().allMatch(ingredient ->
-                ingredient.getPlannedMeal().getFridge().getId().equals(fridgeId));
+                ingredient.getPlannedMeal().getFridge().getId().equals(fridgeId)
+                        && ingredient.getPlannedMeal().getCompletedAt() == null);
         if (!allBelongToFridge) {
             throw new NotFoundException("Planned meal ingredient not found");
         }

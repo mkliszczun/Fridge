@@ -13,6 +13,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface FridgeItemRepository extends JpaRepository<FridgeItem, UUID> {
+    @Query("select i.fridge.id from FridgeItem i where i.id = :id")
+    Optional<UUID> findFridgeId(UUID id);
 
     @Query("""
       select i from FridgeItem i
