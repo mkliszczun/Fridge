@@ -1,6 +1,7 @@
 package io.github.mkliszczun.fridge.controller;
 
 import io.github.mkliszczun.fridge.account.AccountService;
+import io.github.mkliszczun.fridge.account.EmailVerificationService;
 import io.github.mkliszczun.fridge.dto.RegisterRequest;
 import io.github.mkliszczun.fridge.entity.LoginRequest;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
@@ -11,9 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.UserDetailsManager;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
@@ -24,37 +22,44 @@ public class AuthController {
     public record ForgotRequest(@NotBlank @Email @Size(max = 254) String email) {}
     public record ResetRequest(@NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{43}") String token,
                                @NotBlank @Size(min = 8, max = 72) String password) {}
+    public record EmailSendRequest(@NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{43}") String verificationToken,
+                                   @Email @Size(max = 254) String email) {}
+    public record EmailVerifyRequest(@NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{43}") String verificationToken,
+                                     @NotBlank @Pattern(regexp = "[0-9]{6}") String code) {}
 
     private final AuthenticationManager authenticationManager;
-    private final UserDetailsManager users;
-    private final PasswordEncoder passwords;
+    private final EmailVerificationService verification;
     private final AccountService accounts;
 
-    public AuthController(AuthenticationManager authenticationManager, UserDetailsManager users,
-                          PasswordEncoder passwords, AccountService accounts) {
+    public AuthController(AuthenticationManager authenticationManager, EmailVerificationService verification,
+                          AccountService accounts) {
         this.authenticationManager = authenticationManager;
-        this.users = users;
-        this.passwords = passwords;
+        this.verification = verification;
         this.accounts = accounts;
     }
 
     @PostMapping("/login")
-    public AccountService.Tokens login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
         var auth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getLogin(), request.getPassword()));
-        return accounts.issue((AppUserDetails) auth.getPrincipal());
+        AppUserDetails user = (AppUserDetails) auth.getPrincipal();
+        return user.isEmailVerified() ? ResponseEntity.ok(accounts.issue(user))
+                : ResponseEntity.accepted().body(verification.startExisting(user));
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
-        AccountService.validatePassword(request.password());
-        if (users.userExists(request.login())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "User already exists"));
-        }
-        users.createUser(User.withUsername(request.login()).password(passwords.encode(request.password()))
-                .roles("USER").build());
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(accounts.issue((AppUserDetails) users.loadUserByUsername(request.login())));
+        return ResponseEntity.accepted().body(verification.register(request));
+    }
+
+    @PostMapping("/email/send")
+    public EmailVerificationService.Delivery sendEmail(@Valid @RequestBody EmailSendRequest request) {
+        return verification.send(request.verificationToken(), request.email());
+    }
+
+    @PostMapping("/email/verify")
+    public AccountService.Tokens verifyEmail(@Valid @RequestBody EmailVerifyRequest request) {
+        return verification.verify(request.verificationToken(), request.code());
     }
 
     @PostMapping("/refresh")

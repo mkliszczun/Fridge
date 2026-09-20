@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureTestDatabase(replace = Replace.ANY)
 @DirtiesContext
 @ActiveProfiles("test")
-class FlowE2ETest {
+class FlowE2ETest extends VerifiedAccountTestSupport {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper om;
@@ -35,10 +35,7 @@ class FlowE2ETest {
         // 1) REGISTER
         var login = "user+" + UUID.randomUUID() + "@test.local";
         var password = "Secret123!";
-        mvc.perform(post("/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("login", login, "password", password))))
-                .andExpect(status().isCreated());
+        registerVerified(login, password);
 
         // 2) LOGIN → JWT
         var loginRes = mvc.perform(post("/auth/login")

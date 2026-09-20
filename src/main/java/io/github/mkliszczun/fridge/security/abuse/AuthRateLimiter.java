@@ -36,6 +36,8 @@ public class AuthRateLimiter {
             case "/auth/register" -> { count = limits.getRegistrationsPerHour(); seconds = 3600; }
             case "/auth/password/forgot", "/auth/password/reset" -> count = limits.getPasswordRequestsPer15Minutes();
             case "/auth/refresh" -> count = limits.getRefreshPer15Minutes();
+            case "/auth/email/send" -> count = limits.getEmailSendsPer15Minutes();
+            case "/auth/email/verify" -> count = limits.getEmailVerificationsPer15Minutes();
             default -> { return 0; }
         }
         locks.lock("auth");

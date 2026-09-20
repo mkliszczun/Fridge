@@ -12,6 +12,9 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     Optional<UserEntity> findByEmail(String email);
     Optional<UserEntity> findByPasswordResetHash(String hash);
 
+    @Query("select u from UserEntity u where lower(u.email) = :address or lower(u.username) = :address")
+    List<UserEntity> findAddressOwners(String address);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from UserEntity u where u.id = :id")
     Optional<UserEntity> findLockedById(UUID id);

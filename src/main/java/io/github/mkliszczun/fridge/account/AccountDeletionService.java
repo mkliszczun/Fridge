@@ -57,6 +57,7 @@ public class AccountDeletionService {
         jdbc.update("update fridge_item set owner_user_id = null where owner_user_id = ?", userId);
         jdbc.update("delete from fridge_member where user_id = ?", userId);
         jdbc.update("delete from refresh_token where user_id = ?", userId);
+        jdbc.update("delete from email_verification where user_id = ?", userId);
         jdbc.update("delete from ai_daily_usage where user_id = ?", userId);
         jdbc.update("delete from user_roles where user_id = ?", userId);
         jdbc.update("delete from users where id = ?", userId);

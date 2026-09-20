@@ -31,6 +31,7 @@ class AiBudgetServiceTest {
 
     UUID user() {
         UserEntity user = new UserEntity();
+        user.setEmailVerifiedAt(java.time.Instant.now());
         user.setUsername(UUID.randomUUID() + "@test.local");
         user.setEmail(user.getUsername());
         user.setPassword("unused-test-hash");

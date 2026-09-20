@@ -8,8 +8,10 @@ Wszystkie prywatne endpointy wymagają `Authorization: Bearer <token>`.
 
 | Endpoint | Treść JSON / wynik |
 | --- | --- |
-| `POST /auth/register` | `{"login":"email@example.com","password":"..."}` → 201 i para tokenów. Nowe konta zawsze FREE/USER. Login jest e-mailem, maks. 64 znaki. |
-| `POST /auth/login` | Ten sam format → 200 i para tokenów; błędne dane → 401. |
+| `POST /auth/register` | `{"login":"email@example.com","password":"..."}` → 202 i `verificationToken`; konto powstaje po potwierdzeniu kodu, zawsze FREE/USER. Login jest e-mailem, maks. 64 znaki. |
+| `POST /auth/login` | Ten sam format → 200 i para tokenów dla potwierdzonego konta; 202 i `verificationToken` dla niepotwierdzonego; błędne dane → 401. |
+| `POST /auth/email/send` | `verificationToken`, opcjonalnie `email` → 200, `codeExpiresAt` i `resendAvailableAt`; wysyła lub ponawia kod. |
+| `POST /auth/email/verify` | `verificationToken`, sześciocyfrowy `code` jako string → 200 i para tokenów. |
 | `POST /auth/refresh` | `{"refreshToken":"..."}` → nowa para; bez nagłówka ze starym JWT. |
 | `POST /auth/logout` | Wylogowuje wszystkie urządzenia, unieważniając JWT i refresh tokeny; 204. |
 | `POST /auth/password/forgot` | `{"email":"email@example.com"}` → 202 z identycznym komunikatem dla istniejących i nieznanych adresów. Wysyłka maks. raz na 5 minut na konto. |
@@ -22,6 +24,9 @@ Wszystkie prywatne endpointy wymagają `Authorization: Bearer <token>`.
 Para tokenów ma postać `{"token":"JWT","refreshToken":"opaque-secret","expiresIn":900}`. Pole `token` zachowuje zgodność z dotychczasowym logowaniem. Domyślnie JWT jest ważny 15 minut, a sesja odświeżania ma nieprzedłużany termin 30 dni od logowania. Aplikacja powinna przechowywać refresh token w bezpiecznym magazynie systemowym, zapisywać nowy token po odświeżeniu i wykonywać tylko jedno odświeżanie naraz. Ponowne użycie zużytego refresh tokenu unieważnia wszystkie sesje konta. Jeśli odpowiedź odświeżania zginie w sieci, potrzebne będzie ponowne logowanie.
 
 Nowe hasła: minimum 8 znaków i maksymalnie 72 bajty UTF-8 (ograniczenie BCrypt). Po wdrożeniu stare JWT bez wersji sesji wymagają ponownego logowania. Status konta oraz uprawnienia są odczytywane z bazy przy każdym żądaniu; premium nie jest zaufaną flagą w JWT ani w danych przesłanych przez klienta. Wygaśnięcie premium działa bez ponownego logowania.
+
+Potwierdzenie adresu obowiązuje również istniejące konta. V15 unieważnia ich stare sesje;
+zachowuje dane, role i premium. [Kontrakt mobilki i warunki wdrożenia](email-verification.md).
 
 ## Katalog produktów
 

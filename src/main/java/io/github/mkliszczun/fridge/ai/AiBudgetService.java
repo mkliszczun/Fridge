@@ -52,6 +52,7 @@ public class AiBudgetService {
         var user = users.findLockedById(userId).orElseThrow(() -> new BadCredentialsException("Account unavailable"));
         entityManager.refresh(user);
         new AccountStatusUserDetailsChecker().check(AppUserDetails.fromEntity(user));
+        if (!user.isEmailVerified()) throw new BadCredentialsException("Email not verified");
         if (user.getTokenVersion() != tokenVersion) throw new BadCredentialsException("Session revoked");
         Instant now = clock.instant();
         LocalDate date = LocalDate.ofInstant(now, ZoneOffset.UTC);

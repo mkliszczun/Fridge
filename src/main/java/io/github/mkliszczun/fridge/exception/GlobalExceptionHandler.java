@@ -16,6 +16,11 @@ import java.util.List;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(io.github.mkliszczun.fridge.account.EmailDeliveryException.class)
+    public ResponseEntity<ErrorResponse> handleEmailDelivery(io.github.mkliszczun.fridge.account.EmailDeliveryException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponse.of(ex.getReason()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
 

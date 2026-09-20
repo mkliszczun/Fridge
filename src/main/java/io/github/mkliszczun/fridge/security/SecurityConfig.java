@@ -38,7 +38,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login", "/auth/register", "/auth/refresh",
-                                "/auth/password/forgot", "/auth/password/reset",
+                                "/auth/password/forgot", "/auth/password/reset", "/auth/email/send", "/auth/email/verify",
                                 "/reset-password.html", "/reset-password.js",
                                 "/index.html", "/js/**", "/css/**", "/integration/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")

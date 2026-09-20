@@ -30,6 +30,7 @@ public class JpaUserDetailsManager implements UserDetailsManager {
     public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
         return repo.findByUsername(usernameOrEmail)
                 .or(() -> repo.findByEmail(usernameOrEmail))
+                .or(() -> repo.findByEmail(usernameOrEmail.trim().toLowerCase(java.util.Locale.ROOT)))
                 .map(AppUserDetails::fromEntity)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + usernameOrEmail));
     }

@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureTestDatabase(replace = Replace.ANY)
 @DirtiesContext
 @ActiveProfiles("test")
-class AiMealPlanFromRecipesFlowE2ETest {
+class AiMealPlanFromRecipesFlowE2ETest extends VerifiedAccountTestSupport {
 
     @Autowired
     private MockMvc mvc;
@@ -114,11 +114,7 @@ class AiMealPlanFromRecipesFlowE2ETest {
 
     private String register() throws Exception {
         String login = "ai-plan+" + UUID.randomUUID() + "@test.local";
-        var result = mvc.perform(post("/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("login", login, "password", "Secret123!"))))
-                .andExpect(status().isCreated())
-                .andReturn();
+        var result = registerVerified(login, "Secret123!");
         return read(result.getResponse().getContentAsString()).get("token").asText();
     }
 

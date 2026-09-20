@@ -69,6 +69,7 @@ public class AccountService {
     }
 
     private Tokens newTokens(UserEntity user, Instant expiry) {
+        if (!user.isEmailVerified()) throw new BadCredentialsException("Email not verified");
         new AccountStatusUserDetailsChecker().check(AppUserDetails.fromEntity(user));
         String secret = SecretTokens.generate();
         RefreshToken refresh = new RefreshToken();
@@ -89,6 +90,8 @@ public class AccountService {
             if (token == null) return null;
             UserEntity user = users.findLockedById(token.getUserId()).orElse(null);
             if (user == null) return null;
+            entityManager.refresh(user);
+            if (!user.isEmailVerified()) return null;
             try {
                 entityManager.refresh(token); // Another request may have rotated it while waiting for the user lock.
             } catch (jakarta.persistence.EntityNotFoundException ex) {
@@ -113,7 +116,8 @@ public class AccountService {
     public void forgotPassword(String email) {
         mailer.requireConfigured(); // Same response for existing/unknown addresses when mail is unavailable.
         try {
-            tx.executeWithoutResult(status -> users.findByEmail(email).ifPresent(candidate -> {
+            tx.executeWithoutResult(status -> users.findByEmail(email)
+                    .or(() -> users.findByEmail(email.trim().toLowerCase(java.util.Locale.ROOT))).ifPresent(candidate -> {
             UserEntity user = locked(candidate.getId());
             Instant now = clock.instant();
             if (!user.isEnabled() || (user.getPasswordResetRequestedAt() != null

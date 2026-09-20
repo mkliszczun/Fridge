@@ -12,8 +12,11 @@ Liczone są także nieudane próby (przed walidacją i uwierzytelnieniem). Odrzu
 | `AUTH_GLOBAL_REGISTRATIONS_PER_DAY` | 100 | rejestracja we wszystkich instancjach |
 | `AUTH_PASSWORD_REQUESTS_PER_15_MINUTES` | 5 | osobno żądanie i wykonanie resetu, na IP |
 | `AUTH_REFRESH_PER_15_MINUTES` | 60 | odświeżanie sesji z jednego IP |
+| `AUTH_EMAIL_SENDS_PER_15_MINUTES` | 10 | wysyłka kodu weryfikacji z jednego IP |
+| `AUTH_EMAIL_VERIFICATIONS_PER_15_MINUTES` | 20 | potwierdzanie kodu z jednego IP |
 
 Okno zaczyna się przy pierwszej próbie i wygasa po wskazanym czasie. IPv6 jest grupowany po prefiksie /64.
+Weryfikacja e-mail ma dodatkowo niezależne, ruchome limity konta/adresu opisane w [kontrakcie weryfikacji](email-verification.md).
 Przechowujemy skrót IP, nie surowy adres; wygasłe wpisy są usuwane przy kolejnych limitowanych żądaniach.
 Skrót jest pseudonimizacją, nie gwarancją anonimowości. Użytkownicy za wspólnym NAT dzielą limit.
 

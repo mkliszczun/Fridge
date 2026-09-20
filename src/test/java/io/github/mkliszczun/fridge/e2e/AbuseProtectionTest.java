@@ -87,6 +87,18 @@ class AbuseProtectionTest {
         assertThat(buckets.findAll()).allSatisfy(bucket -> assertThat(bucket.getAttempts()).isPositive());
     }
 
+    @Test void emailEndpointsHaveIndependentIpLimitsEvenForUnknownProcesses() throws Exception {
+        for (String path : List.of("/auth/email/send", "/auth/email/verify")) {
+            int count = path.endsWith("send") ? abuse.getEmailSendsPer15Minutes() : abuse.getEmailVerificationsPer15Minutes();
+            for (int i = 0; i < count; i++) {
+                mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                        .andExpect(status().isBadRequest());
+            }
+            mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isTooManyRequests()).andExpect(header().exists("Retry-After"));
+        }
+    }
+
     @Test void globalBudgetCannotBeMultipliedByAccountsOrConcurrentRequests() throws Exception {
         List<UUID> ids = new ArrayList<>();
         for (int i = 0; i < 12; i++) ids.add(user());
@@ -143,6 +155,7 @@ class AbuseProtectionTest {
 
     private UUID user() {
         UserEntity user = new UserEntity();
+        user.setEmailVerifiedAt(java.time.Instant.now());
         user.setUsername(UUID.randomUUID() + "@test.local");
         user.setEmail(user.getUsername());
         user.setPassword("test-only-hash");

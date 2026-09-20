@@ -7,6 +7,12 @@ import java.time.Instant;
 
 public interface AuthRateBucketRepository extends JpaRepository<AuthRateBucket, String> {
     @Modifying
-    @Query("delete from AuthRateBucket b where b.expiresAt <= :now")
+    @Query("delete from AuthRateBucket b where b.expiresAt <= :now and b.id not like 'email:%'")
     void deleteExpired(Instant now);
+
+    @Modifying
+    @Query("delete from AuthRateBucket b where b.expiresAt <= :now and b.id like 'email:%'")
+    void deleteExpiredEmailEvents(Instant now);
+
+    java.util.List<AuthRateBucket> findByIdStartingWithAndExpiresAtAfter(String prefix, Instant now);
 }

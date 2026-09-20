@@ -19,4 +19,6 @@ public class AbuseProperties {
     @Min(1) private int globalRegistrationsPerDay = 100;
     @Min(1) private int passwordRequestsPer15Minutes = 5;
     @Min(1) private int refreshPer15Minutes = 60;
+    @Min(1) private int emailSendsPer15Minutes = 10;
+    @Min(1) private int emailVerificationsPer15Minutes = 20;
 }

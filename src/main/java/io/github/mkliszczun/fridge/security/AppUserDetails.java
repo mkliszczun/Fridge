@@ -19,8 +19,10 @@ public class AppUserDetails implements UserDetails {
     private final boolean accountNonLocked;
     private final boolean credentialsNonExpired;
     private long tokenVersion;
+    private boolean emailVerified;
 
     public long getTokenVersion() { return tokenVersion; }
+    public boolean isEmailVerified() { return emailVerified; }
 
     public AppUserDetails(UUID id,
                           String username,
@@ -56,6 +58,7 @@ public class AppUserDetails implements UserDetails {
                 u.isCredentialsNonExpired()
         );
         details.tokenVersion = u.getTokenVersion();
+        details.emailVerified = u.isEmailVerified();
         return details;
     }
 

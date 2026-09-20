@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureTestDatabase(replace = Replace.ANY)
 @DirtiesContext
 @ActiveProfiles("test")
-class RecipeFlowE2ETest {
+class RecipeFlowE2ETest extends VerifiedAccountTestSupport {
 
     @Autowired
     private MockMvc mvc;
@@ -135,10 +135,7 @@ class RecipeFlowE2ETest {
         String login = "recipe+" + UUID.randomUUID() + "@test.local";
         String password = "Secret123!";
 
-        mvc.perform(post("/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("login", login, "password", password))))
-                .andExpect(status().isCreated());
+        registerVerified(login, password);
 
         var loginResult = mvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

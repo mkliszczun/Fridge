@@ -15,7 +15,7 @@ import java.util.Set;
 
 public class AuthRateLimitFilter extends OncePerRequestFilter {
     private static final Set<String> PATHS = Set.of("/auth/login", "/auth/register", "/auth/refresh",
-            "/auth/password/forgot", "/auth/password/reset");
+            "/auth/password/forgot", "/auth/password/reset", "/auth/email/send", "/auth/email/verify");
     private final AuthRateLimiter limiter;
     private final AbuseProperties properties;
     private final ObjectMapper json;

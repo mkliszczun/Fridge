@@ -45,6 +45,7 @@ public class JwtFilter extends OncePerRequestFilter {
                 var userDetails = userDetailsService.loadById(
                         java.util.UUID.fromString(claims.get("uid", String.class)));
                 new org.springframework.security.authentication.AccountStatusUserDetailsChecker().check(userDetails);
+                if (!userDetails.isEmailVerified()) throw new IllegalArgumentException("Email not verified");
                 if (claims.get("ver", Number.class).longValue() != userDetails.getTokenVersion()) {
                     throw new IllegalArgumentException("Revoked access token");
                 }

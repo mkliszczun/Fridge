@@ -162,6 +162,7 @@ class InventoryConsistencyTest {
 
     private Fixture fixture() {
         UserEntity user = new UserEntity();
+        user.setEmailVerifiedAt(java.time.Instant.now());
         user.setUsername(UUID.randomUUID() + "@test.local");
         user.setEmail(user.getUsername());
         user.setPassword("test-only-hash");

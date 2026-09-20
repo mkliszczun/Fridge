@@ -21,7 +21,7 @@ public class GuardLocks {
     @PostConstruct
     void initialize() {
         // Flyway seeds production; also support Hibernate-created test databases.
-        for (String id : new String[]{"auth", "ai"}) {
+        for (String id : new String[]{"auth", "ai", "email"}) {
             try {
                 transactions.executeWithoutResult(status -> {
                     if (!repository.existsById(id)) repository.saveAndFlush(new GuardLock(id));

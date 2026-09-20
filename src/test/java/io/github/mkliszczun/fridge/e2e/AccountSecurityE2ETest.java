@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class AccountSecurityE2ETest {
+class AccountSecurityE2ETest extends VerifiedAccountTestSupport {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired UserRepository users;
@@ -45,8 +45,7 @@ class AccountSecurityE2ETest {
 
     Account register() throws Exception {
         String email = UUID.randomUUID() + "@test.local";
-        var result = mvc.perform(json(post("/auth/register"), Map.of("login", email, "password", PASSWORD)))
-                .andExpect(status().isCreated()).andReturn();
+        var result = registerVerified(email, PASSWORD);
         JsonNode body = mapper.readTree(result.getResponse().getContentAsString());
         return new Account(email, users.findByUsername(email).orElseThrow().getId(),
                 body.path("token").asText(), body.path("refreshToken").asText());

@@ -37,11 +37,15 @@ public class UserEntity {
     @Column(nullable = false)
     private long tokenVersion = 0;
     private Instant premiumUntil;
+    private Instant emailVerifiedAt;
     private String passwordResetHash;
     private Instant passwordResetExpiresAt;
     private Instant passwordResetRequestedAt;
 
     public long getTokenVersion() { return tokenVersion; }
+    public Instant getEmailVerifiedAt() { return emailVerifiedAt; }
+    public void setEmailVerifiedAt(Instant value) { emailVerifiedAt = value; }
+    public boolean isEmailVerified() { return emailVerifiedAt != null; }
     public void revokeSessions() { tokenVersion++; }
     public Instant getPremiumUntil() { return premiumUntil; }
     public void setPremiumUntil(Instant value) { premiumUntil = value; }
