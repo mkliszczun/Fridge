@@ -41,6 +41,15 @@ class AccountSecurityE2ETest extends VerifiedAccountTestSupport {
     @MockitoBean PasswordResetMailer mailer;
     static final String PASSWORD = "Secret123!";
 
+    @Test
+    void healthIsPublicButApplicationDataStillRequiresAuthentication() throws Exception {
+        mvc.perform(get("/health")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(header().exists("X-Request-ID"))
+                .andExpect(header().string("Cache-Control", "no-store"));
+        mvc.perform(get("/api/me")).andExpect(status().isUnauthorized());
+    }
+
     record Account(String email, UUID id, String token, String refresh) {}
 
     Account register() throws Exception {

@@ -2,6 +2,7 @@ package io.github.mkliszczun.fridge.account;
 
 import io.github.mkliszczun.fridge.dto.RegisterRequest;
 import io.github.mkliszczun.fridge.entity.UserEntity;
+import io.github.mkliszczun.fridge.logging.SafeDiagnostics;
 import io.github.mkliszczun.fridge.enums.Role;
 import io.github.mkliszczun.fridge.repository.UserRepository;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
@@ -28,6 +29,7 @@ import java.time.Instant;
 import java.util.*;
 
 @Service
+@lombok.extern.slf4j.Slf4j
 public class EmailVerificationService {
     public record Challenge(String verificationToken, Instant expiresAt, String email, boolean emailRequired) {}
     public record Delivery(Instant codeExpiresAt, Instant resendAvailableAt) {}
@@ -136,7 +138,8 @@ public class EmailVerificationService {
                 return new Delivery(flow.getCodeExpiresAt(), now.plusSeconds(60));
             });
         } catch (MailException ex) {
-            // Do not return/log SMTP diagnostics: they may contain credentials or message contents.
+            log.error("event=email_verification_delivery_failed diagnostics={}", SafeDiagnostics.describe(ex));
+            // Never expose raw SMTP messages: they may contain credentials or message contents.
             throw new EmailDeliveryException();
         }
     }

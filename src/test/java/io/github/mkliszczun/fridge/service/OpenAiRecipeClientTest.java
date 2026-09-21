@@ -68,6 +68,23 @@ class OpenAiRecipeClientTest {
     }
 
     @Test
+    void providerFailureRetainsSafeDiagnosticStatusWithoutLoggingItsBody() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        OpenAiRecipeClient client = new OpenAiRecipeClient(builder, properties("test-key"), objectMapper);
+        server.expect(requestTo("https://api.openai.com/v1/responses"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withStatus(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                        .body("private provider response: secret-key"));
+        assertThatThrownBy(() -> client.generate(request(null), null, null))
+                .isInstanceOf(AiServiceUnavailableException.class)
+                .hasCauseInstanceOf(org.springframework.web.client.RestClientResponseException.class)
+                .satisfies(error -> assertThat(io.github.mkliszczun.fridge.logging.SafeDiagnostics.describe(error))
+                        .contains("upstreamStatus=401").doesNotContain("secret-key", "private provider response"));
+        server.verify();
+    }
+
+    @Test
     void generate_includesGuidelinesPreviousProposalAndFeedback() throws Exception {
         OpenAiProperties properties = properties("test-key");
         RestClient.Builder builder = RestClient.builder();

@@ -37,6 +37,7 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer :: disable)
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/health").permitAll()
                         .requestMatchers("/auth/login", "/auth/register", "/auth/refresh",
                                 "/auth/password/forgot", "/auth/password/reset", "/auth/email/send", "/auth/email/verify",
                                 "/reset-password.html", "/reset-password.js",

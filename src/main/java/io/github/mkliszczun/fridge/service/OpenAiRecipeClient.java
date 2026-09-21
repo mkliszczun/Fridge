@@ -98,7 +98,7 @@ public class OpenAiRecipeClient {
                     .body(JsonNode.class);
             return parseRecipe(response);
         } catch (RestClientResponseException | ResourceAccessException ex) {
-            throw new AiServiceUnavailableException("AI service request failed");
+            throw new AiServiceUnavailableException("AI service request failed", ex);
         }
     }
 

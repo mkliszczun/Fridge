@@ -1,6 +1,7 @@
 package io.github.mkliszczun.fridge.account;
 
 import io.github.mkliszczun.fridge.entity.UserEntity;
+import io.github.mkliszczun.fridge.logging.SafeDiagnostics;
 import io.github.mkliszczun.fridge.repository.UserRepository;
 import io.github.mkliszczun.fridge.security.AppUserDetails;
 import io.github.mkliszczun.fridge.util.JwtUtil;
@@ -130,7 +131,8 @@ public class AccountService {
             }));
         } catch (org.springframework.mail.MailException ex) {
             // The transaction rolled back. Never disclose account existence or SMTP details to the caller.
-            log.warn("Password reset mail delivery failed");
+            log.error("event=password_reset_delivery_failed diagnostics={}",
+                    SafeDiagnostics.describe(ex));
         }
     }
 

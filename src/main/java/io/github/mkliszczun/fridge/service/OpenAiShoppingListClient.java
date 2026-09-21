@@ -96,7 +96,7 @@ public class OpenAiShoppingListClient {
                     .body(JsonNode.class);
             return parseMatches(response);
         } catch (RestClientResponseException | ResourceAccessException ex) {
-            throw new AiServiceUnavailableException("AI service request failed");
+            throw new AiServiceUnavailableException("AI service request failed", ex);
         }
     }
 

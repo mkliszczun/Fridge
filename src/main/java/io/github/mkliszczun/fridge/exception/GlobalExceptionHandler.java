@@ -1,6 +1,7 @@
 package io.github.mkliszczun.fridge.exception;
 
 import io.github.mkliszczun.fridge.dto.ErrorResponse;
+import io.github.mkliszczun.fridge.logging.SafeDiagnostics;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.http.HttpStatus;
@@ -14,10 +15,12 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @ControllerAdvice
+@lombok.extern.slf4j.Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(io.github.mkliszczun.fridge.account.EmailDeliveryException.class)
     public ResponseEntity<ErrorResponse> handleEmailDelivery(io.github.mkliszczun.fridge.account.EmailDeliveryException ex) {
+        log.error("event=email_delivery_unavailable diagnostics={}", SafeDiagnostics.describe(ex));
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponse.of(ex.getReason()));
     }
 
@@ -55,6 +58,9 @@ public class GlobalExceptionHandler {
             }
         }
 
+        if (status.is5xxServerError()) {
+            log.error("event=api_failure status={} diagnostics={}", status.value(), SafeDiagnostics.describe(ex));
+        }
         var response = ResponseEntity.status(status);
         if (ex instanceof ResponseStatusException rse) {
             response.headers(rse.getHeaders());

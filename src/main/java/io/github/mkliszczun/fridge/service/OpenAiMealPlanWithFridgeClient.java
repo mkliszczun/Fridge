@@ -92,7 +92,7 @@ public class OpenAiMealPlanWithFridgeClient {
                     .body(JsonNode.class);
             return parseRecipeIds(response);
         } catch (RestClientResponseException | ResourceAccessException ex) {
-            throw new AiServiceUnavailableException("AI service request failed");
+            throw new AiServiceUnavailableException("AI service request failed", ex);
         }
     }
 
