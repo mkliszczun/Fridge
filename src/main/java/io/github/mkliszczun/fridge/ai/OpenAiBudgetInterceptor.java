@@ -20,7 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.*;
 import java.net.URI;
 
-/** Installed on every Spring-managed RestClient.Builder, covering all four AI clients and each retry. */
+/** Installed on every Spring-managed RestClient.Builder, covering all AI clients and each retry. */
 @Component
 public class OpenAiBudgetInterceptor implements ClientHttpRequestInterceptor, RestClientCustomizer {
     private static final String USE_COUNTED_ATTRIBUTE = OpenAiBudgetInterceptor.class.getName() + ".useCounted";

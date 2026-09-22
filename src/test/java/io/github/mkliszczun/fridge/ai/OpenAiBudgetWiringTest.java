@@ -16,7 +16,7 @@ class OpenAiBudgetWiringTest {
     @Autowired ApplicationContext context;
 
     @Test void allProductionAiClientsRejectUnmeteredCallsBeforeHttp() {
-        for (String bean : new String[]{"openAiRecipeClient", "openAiMealPlanClient", "openAiMealPlanWithFridgeClient", "openAiShoppingListClient"}) {
+        for (String bean : new String[]{"openAiRecipeClient", "openAiMealPlanClient", "openAiMealPlanWithFridgeClient", "openAiShoppingListClient", "openAiProductClient"}) {
             RestClient client = (RestClient) ReflectionTestUtils.getField(context.getBean(bean), "restClient");
             assertThatThrownBy(() -> client.post().uri("/responses").body(Map.of()).retrieve().toBodilessEntity())
                     .as(bean).isInstanceOf(org.springframework.security.authentication.BadCredentialsException.class);

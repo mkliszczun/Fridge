@@ -75,7 +75,8 @@ class ProductServiceImplTest {
                 sampleProduct.getProductType(),
                 sampleProduct.getEan(),
                 sampleProduct.getDefaultUnit(),
-                sampleProduct.getShelfLifeAfterOpeningDays()
+                sampleProduct.getShelfLifeAfterOpeningDays(),
+                " Pilos "
         );
 
         // then
@@ -89,6 +90,7 @@ class ProductServiceImplTest {
         assertThat(toSave.getEan()).isEqualTo("5901234567890");
         Assertions.assertThat(toSave.getDefaultUnit()).isEqualTo(Unit.MILLILITER);
         assertThat(toSave.getShelfLifeAfterOpeningDays()).isEqualTo(3);
+        assertThat(toSave.getBrand()).isEqualTo("Pilos");
     }
 
     @Test

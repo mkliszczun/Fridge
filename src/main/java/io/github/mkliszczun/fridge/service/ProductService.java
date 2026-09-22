@@ -10,7 +10,7 @@ import java.util.UUID;
 
 public interface ProductService {
     Product createProduct(String name, ProductType productType, String ean, Unit defaultUnit,
-                          Integer shelfLifeAfterOpeningDays);
+                          Integer shelfLifeAfterOpeningDays, String brand);
     Product updateShelfLifeAfterOpeningDays(UUID id, Integer shelfLifeAfterOpeningDays);
     boolean deleteProduct(UUID id);
 
