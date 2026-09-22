@@ -29,6 +29,7 @@ public class OpenAiProductClient {
             Zachowaj ręcznie wypełnione pola. Dane OFF są wskazówką, mogą być niepełne lub błędne.
             brand: tylko marka wyraźnie wynikająca z danych; w razie braku pewności null. Nie wymyślaj marki.
             defaultUnit: GRAM dla masy, MILLILITER dla objętości, PIECE dla produktów liczonych na sztuki.
+            defaultExpirationDays: ostrożny, orientacyjny okres przydatności nieotwartego produktu w pełnych dniach przy prawidłowym przechowywaniu, 0 oznacza ten sam dzień.
             shelfLifeAfterOpeningDays: ostrożny, orientacyjny okres po otwarciu w pełnych dniach, 0 oznacza ten sam dzień.
             Uwzględnij rodzaj produktu i domyślne dni kategorii. Gdy nie da się sensownie oszacować, zwróć null.
             Nie traktuj oszacowania jako gwarancji bezpieczeństwa ani odczytu etykiety.
@@ -61,9 +62,12 @@ public class OpenAiProductClient {
             }
             if (!StringUtils.hasText(output)) throw new InvalidAiResponseException("AI did not return product data");
             JsonNode draft = mapper.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(output);
-            if (!draft.isObject() || draft.size() != 4 || !draft.has("brand") || !draft.has("shelfLifeAfterOpeningDays")
+            if (!draft.isObject() || draft.size() != 5 || !draft.has("brand") || !draft.has("defaultExpirationDays")
+                    || !draft.has("shelfLifeAfterOpeningDays")
                     || !draft.path("productType").isTextual() || !draft.path("defaultUnit").isTextual()
                     || !(draft.path("brand").isNull() || draft.path("brand").isTextual())
+                    || !(draft.path("defaultExpirationDays").isNull()
+                        || draft.path("defaultExpirationDays").isIntegralNumber())
                     || !(draft.path("shelfLifeAfterOpeningDays").isNull()
                         || draft.path("shelfLifeAfterOpeningDays").isIntegralNumber())) {
                 throw new InvalidAiResponseException("AI returned invalid product fields");
@@ -81,11 +85,12 @@ public class OpenAiProductClient {
 
     private Map<String, Object> payload(AiProductGenerateRequest request, List<DefaultExpirationResponse> defaults) throws JsonProcessingException {
         var schema = Map.of("type", "object", "additionalProperties", false,
-                "required", List.of("brand", "productType", "defaultUnit", "shelfLifeAfterOpeningDays"),
+                "required", List.of("brand", "productType", "defaultUnit", "defaultExpirationDays", "shelfLifeAfterOpeningDays"),
                 "properties", Map.of(
                         "brand", Map.of("type", List.of("string", "null"), "maxLength", 255),
                         "productType", Map.of("type", "string", "enum", Arrays.stream(ProductType.values()).map(Enum::name).toList()),
                         "defaultUnit", Map.of("type", "string", "enum", Arrays.stream(Unit.values()).map(Enum::name).toList()),
+                        "defaultExpirationDays", Map.of("type", List.of("integer", "null"), "minimum", 0, "maximum", 3650),
                         "shelfLifeAfterOpeningDays", Map.of("type", List.of("integer", "null"), "minimum", 0, "maximum", 3650)));
         return Map.of("model", properties.getModel(), "instructions", INSTRUCTIONS,
                 "input", mapper.writeValueAsString(Map.of("product", request, "categoryDefaults", defaults)),

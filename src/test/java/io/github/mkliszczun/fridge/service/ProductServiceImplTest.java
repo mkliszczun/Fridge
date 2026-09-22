@@ -56,6 +56,7 @@ class ProductServiceImplTest {
         sampleProduct.setEan("5901234567890");
         sampleProduct.setDefaultUnit(Unit.MILLILITER);
         sampleProduct.setShelfLifeAfterOpeningDays(3);
+        sampleProduct.setDefaultExpirationDays(21);
     }
 
     @Test
@@ -67,6 +68,7 @@ class ProductServiceImplTest {
         saved.setEan(sampleProduct.getEan());
         saved.setDefaultUnit(sampleProduct.getDefaultUnit());
         saved.setShelfLifeAfterOpeningDays(sampleProduct.getShelfLifeAfterOpeningDays());
+        saved.setDefaultExpirationDays(sampleProduct.getDefaultExpirationDays());
         given(productRepository.save(Mockito.any(Product.class))).willReturn(saved);
 
         // when
@@ -76,6 +78,7 @@ class ProductServiceImplTest {
                 sampleProduct.getEan(),
                 sampleProduct.getDefaultUnit(),
                 sampleProduct.getShelfLifeAfterOpeningDays(),
+                sampleProduct.getDefaultExpirationDays(),
                 " Pilos "
         );
 
@@ -90,6 +93,7 @@ class ProductServiceImplTest {
         assertThat(toSave.getEan()).isEqualTo("5901234567890");
         Assertions.assertThat(toSave.getDefaultUnit()).isEqualTo(Unit.MILLILITER);
         assertThat(toSave.getShelfLifeAfterOpeningDays()).isEqualTo(3);
+        assertThat(toSave.getDefaultExpirationDays()).isEqualTo(21);
         assertThat(toSave.getBrand()).isEqualTo("Pilos");
     }
 

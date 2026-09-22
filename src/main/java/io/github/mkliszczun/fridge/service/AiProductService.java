@@ -1,7 +1,6 @@
 package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.dto.*;
-import io.github.mkliszczun.fridge.entity.DefaultExpirationDays;
 import io.github.mkliszczun.fridge.enums.ProductType;
 import io.github.mkliszczun.fridge.exception.InvalidAiResponseException;
 import jakarta.validation.Validator;
@@ -34,11 +33,10 @@ public class AiProductService {
                 String brand = text(request.brand());
                 if (brand == null && request.offData() != null) brand = text(request.offData().brands());
                 if (brand == null) brand = text(suggestion.brand());
-                Integer categoryDays = defaults.getByProductType(type).map(DefaultExpirationDays::getDefaultExpirationDays).orElse(null);
                 return new AiProductProposalResponse(request.name().trim(), text(request.ean()), brand, type,
                         request.defaultUnit() != null ? request.defaultUnit() : suggestion.defaultUnit(),
                         request.shelfLifeAfterOpeningDays() != null ? request.shelfLifeAfterOpeningDays() : suggestion.shelfLifeAfterOpeningDays(),
-                        categoryDays);
+                        request.defaultExpirationDays() != null ? request.defaultExpirationDays() : suggestion.defaultExpirationDays());
             } catch (InvalidAiResponseException ex) {
                 failure = ex;
             }

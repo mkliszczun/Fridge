@@ -38,13 +38,14 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Product createProduct(String name, ProductType productType, String ean, Unit defaultUnit,
-                                 Integer shelfLifeAfterOpeningDays, String brand) {
+                                 Integer shelfLifeAfterOpeningDays, Integer defaultExpirationDays, String brand) {
         Product product = new Product();
         product.setName(name);
         product.setProductType(productType);
         product.setEan(ean);
         product.setDefaultUnit(defaultUnit);
         product.setShelfLifeAfterOpeningDays(shelfLifeAfterOpeningDays);
+        product.setDefaultExpirationDays(defaultExpirationDays);
         product.setBrand(brand == null || brand.isBlank() ? null : brand.trim());
         Product savedProduct = productRepository.save(product);
 

@@ -37,23 +37,38 @@ class AiProductFlowE2ETest extends VerifiedAccountTestSupport {
     @Test void proposalDoesNotSaveAndExplicitSavePersistsEditableBrandAndDays() throws Exception {
         String token = token();
         long count = products.count();
-        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion("Pilos", ProductType.DAIRY, Unit.MILLILITER, 3));
+        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion("Pilos", ProductType.DAIRY, Unit.MILLILITER, 21, 3));
         mvc.perform(post("/api/ai/products/generate").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Mleko\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Mleko"))
                 .andExpect(jsonPath("$.productType").value("DAIRY"))
+                .andExpect(jsonPath("$.defaultExpirationDays").value(21))
                 .andExpect(jsonPath("$.shelfLifeAfterOpeningDays").value(3));
         assertThat(products.count()).isEqualTo(count);
         var response = mvc.perform(post("/api/products").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content("""
                                 {"name":"Mleko poprawione","brand":"Moja marka","productType":"DAIRY",
-                                 "defaultUnit":"MILLILITER","shelfLifeAfterOpeningDays":2}
+                                 "defaultUnit":"MILLILITER","defaultExpirationDays":21,"shelfLifeAfterOpeningDays":2}
                                 """))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.brand").value("Moja marka"))
+                .andExpect(jsonPath("$.defaultExpirationDays").value(21))
                 .andExpect(jsonPath("$.shelfLifeAfterOpeningDays").value(2)).andReturn();
         var id = UUID.fromString(mapper.readTree(response.getResponse().getContentAsString()).get("id").asText());
         assertThat(products.findById(id).orElseThrow().getShelfLifeAfterOpeningDays()).isEqualTo(2);
+        assertThat(products.findById(id).orElseThrow().getDefaultExpirationDays()).isEqualTo(21);
         assertThat(products.count()).isEqualTo(count + 1);
+
+        var fridgeResponse = mvc.perform(post("/api/fridges").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Dom\"}"))
+                .andExpect(status().isCreated()).andReturn();
+        var fridgeId = mapper.readTree(fridgeResponse.getResponse().getContentAsString()).get("id").asText();
+        var expectedExpiration = java.time.LocalDate.now().plusDays(21).toString();
+        mvc.perform(post("/api/fridge-items").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"fridgeId":"%s","productId":"%s","amount":1,"unit":"MILLILITER"}
+                                """.formatted(fridgeId, id)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.effectiveExpireAt").value(expectedExpiration));
     }
 
     @Test void authenticationAndInputValidationHappenBeforeAi() throws Exception {
@@ -61,7 +76,7 @@ class AiProductFlowE2ETest extends VerifiedAccountTestSupport {
                 .andExpect(status().isUnauthorized());
         String token = token();
         for (String input : List.of("{\"name\":\" \"}", "{\"name\":\"Mleko\",\"productType\":\"BAD\"}",
-                "{\"name\":\"Mleko\",\"shelfLifeAfterOpeningDays\":-1}",
+                "{\"name\":\"Mleko\",\"shelfLifeAfterOpeningDays\":-1}", "{\"name\":\"Mleko\",\"defaultExpirationDays\":-1}",
                 mapper.writeValueAsString(Map.of("name", "Mleko", "offData", Map.of("categoriesTags", List.of("x".repeat(121))))))) {
             mvc.perform(post("/api/ai/products/generate").header("Authorization", "Bearer " + token)
                             .contentType(MediaType.APPLICATION_JSON).content(input)).andExpect(status().isBadRequest());
@@ -72,7 +87,7 @@ class AiProductFlowE2ETest extends VerifiedAccountTestSupport {
     @Test void invalidAiAndUnavailableProviderDoNotSaveAnything() throws Exception {
         String token = token();
         long count = products.count();
-        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, Unit.GRAM, -1));
+        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, Unit.GRAM, 10, -1));
         mvc.perform(post("/api/ai/products/generate").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Mleko\"}"))
                 .andExpect(status().isBadGateway());

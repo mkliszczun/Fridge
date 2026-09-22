@@ -12,6 +12,7 @@ public record AiProductGenerateRequest(
         @Size(max = 255) String brand,
         ProductType productType,
         Unit defaultUnit,
+        @PositiveOrZero @Max(3650) Integer defaultExpirationDays,
         @PositiveOrZero @Max(3650) Integer shelfLifeAfterOpeningDays,
         @Valid OffData offData) {
 

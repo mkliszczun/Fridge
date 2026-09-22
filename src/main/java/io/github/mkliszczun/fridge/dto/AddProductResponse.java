@@ -10,5 +10,6 @@ public record AddProductResponse(UUID id,
                                  String name,
                                  String brand,
                                  Unit defaultUnit,
-                                 Integer shelfLifeAfterOpeningDays) {
+                                 Integer shelfLifeAfterOpeningDays,
+                                 Integer defaultExpirationDays) {
 }

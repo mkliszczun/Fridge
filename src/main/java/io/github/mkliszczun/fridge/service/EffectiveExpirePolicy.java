@@ -23,10 +23,14 @@ public class EffectiveExpirePolicy {
 
         LocalDate sealedExpireAt = bestBeforeDate;
         if (sealedExpireAt == null) {
-            sealedExpireAt = typeDefaults
-                    .map(DefaultExpirationDays::getDefaultExpirationDays)
-                    .map(days -> LocalDate.now().plusDays(days))
-                    .orElse(null);
+            Integer defaultDays = Optional.ofNullable(product)
+                    .map(Product::getDefaultExpirationDays)
+                    .orElseGet(() -> typeDefaults
+                            .map(DefaultExpirationDays::getDefaultExpirationDays)
+                            .orElse(null));
+            if (defaultDays != null) {
+                sealedExpireAt = LocalDate.now().plusDays(defaultDays);
+            }
         }
 
         if (openDate == null) {

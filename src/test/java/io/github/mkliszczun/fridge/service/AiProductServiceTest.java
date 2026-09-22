@@ -29,14 +29,14 @@ class AiProductServiceTest {
     }
     @AfterEach void close() { factory.close(); }
 
-    @Test void nameOnlyGeneratesDraftAndUsesCategoryDefault() {
-        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, Unit.MILLILITER, 3));
+    @Test void nameOnlyGeneratesDraftAndUsesAiProductDefault() {
+        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, Unit.MILLILITER, 21, 3));
         var result = service.generate(request());
         assertThat(result.name()).isEqualTo("Mleko");
         assertThat(result.productType()).isEqualTo(ProductType.DAIRY);
         assertThat(result.defaultUnit()).isEqualTo(Unit.MILLILITER);
         assertThat(result.shelfLifeAfterOpeningDays()).isEqualTo(3);
-        assertThat(result.defaultExpirationDays()).isEqualTo(7);
+        assertThat(result.defaultExpirationDays()).isEqualTo(21);
         assertThat(result.brand()).isNull();
         verify(defaults, never()).updateDefaultExpiration(any(), any());
         verify(defaults, never()).updateDaysAfterOpeningForType(any(), any());
@@ -44,37 +44,39 @@ class AiProductServiceTest {
 
     @Test void preservesManualValuesIncludingZeroAndPassesOffContext() {
         var off = new AiProductGenerateRequest.OffData("Mleko z OFF", "OFF marka", List.of("en:dairies"));
-        var request = new AiProductGenerateRequest(" Moja nazwa ", "123", " Moja marka ", ProductType.MEAT, Unit.GRAM, 0, off);
-        when(client.generate(eq(request), any())).thenReturn(new AiProductSuggestion("AI marka", ProductType.DAIRY, Unit.MILLILITER, 5));
+        var request = new AiProductGenerateRequest(" Moja nazwa ", "123", " Moja marka ", ProductType.MEAT, Unit.GRAM, 0, 0, off);
+        when(client.generate(eq(request), any())).thenReturn(new AiProductSuggestion("AI marka", ProductType.DAIRY, Unit.MILLILITER, 30, 5));
         var result = service.generate(request);
         assertThat(result.name()).isEqualTo("Moja nazwa");
         assertThat(result.ean()).isEqualTo("123");
         assertThat(result.brand()).isEqualTo("Moja marka");
         assertThat(result.productType()).isEqualTo(ProductType.MEAT);
         assertThat(result.defaultUnit()).isEqualTo(Unit.GRAM);
+        assertThat(result.defaultExpirationDays()).isZero();
         assertThat(result.shelfLifeAfterOpeningDays()).isZero();
         verify(client).generate(eq(request), argThat(list -> list.get(0).defaultExpirationDays().equals(7)));
     }
 
     @Test void offBrandWinsOverInventedBrandAndUnknownOpeningDaysStayNull() {
-        var request = new AiProductGenerateRequest("Mleko", "123", null, null, null, null,
+        var request = new AiProductGenerateRequest("Mleko", "123", null, null, null, null, null,
                 new AiProductGenerateRequest.OffData("Mleko", " Pilos ", List.of()));
-        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion("Wrong", ProductType.DAIRY, Unit.MILLILITER, null));
+        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion("Wrong", ProductType.DAIRY, Unit.MILLILITER, null, null));
         var result = service.generate(request);
         assertThat(result.brand()).isEqualTo("Pilos");
+        assertThat(result.defaultExpirationDays()).isNull();
         assertThat(result.shelfLifeAfterOpeningDays()).isNull();
     }
 
     @Test void invalidProposalRetriesOnceThenReturnsValidProposal() {
         when(client.generate(any(), any()))
-                .thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, Unit.GRAM, -1))
-                .thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, Unit.GRAM, 0));
-        assertThat(service.generate(request()).shelfLifeAfterOpeningDays()).isZero();
+                .thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, Unit.GRAM, -1, 0))
+                .thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, Unit.GRAM, 0, 0));
+        assertThat(service.generate(request()).defaultExpirationDays()).isZero();
         verify(client, times(2)).generate(any(), any());
     }
 
     @Test void invalidProposalCannotEscapeValidationAfterRetry() {
-        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, null, 5000));
+        when(client.generate(any(), any())).thenReturn(new AiProductSuggestion(null, ProductType.DAIRY, null, 10, 5000));
         assertThatThrownBy(() -> service.generate(request())).isInstanceOf(InvalidAiResponseException.class);
         verify(client, times(2)).generate(any(), any());
     }
@@ -84,5 +86,5 @@ class AiProductServiceTest {
         assertThatThrownBy(() -> service.generate(request())).isInstanceOf(AiServiceUnavailableException.class);
         verify(client).generate(any(), any());
     }
-    private AiProductGenerateRequest request() { return new AiProductGenerateRequest(" Mleko ", null, null, null, null, null, null); }
+    private AiProductGenerateRequest request() { return new AiProductGenerateRequest(" Mleko ", null, null, null, null, null, null, null); }
 }

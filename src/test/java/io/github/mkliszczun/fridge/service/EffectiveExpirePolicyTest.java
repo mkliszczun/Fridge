@@ -31,6 +31,7 @@ class EffectiveExpirePolicyTest {
     @Test
     void usesBestBeforeDateForSealedItem() {
         Product product = product(ProductType.DAIRY, null);
+        product.setDefaultExpirationDays(21);
         LocalDate bestBeforeDate = LocalDate.of(2026, 9, 10);
 
         LocalDate result = policy.computeEffectiveExpireAt(
@@ -50,6 +51,21 @@ class EffectiveExpirePolicyTest {
                 null, null, product, null, null);
 
         LocalDate latestExpected = LocalDate.now().plusDays(14);
+        assertThat(result).isBetween(earliestExpected, latestExpected);
+    }
+
+    @Test
+    void usesProductDefaultBeforeCategoryDefaultWhenBestBeforeDateIsMissing() {
+        Product product = product(ProductType.DAIRY, null);
+        product.setDefaultExpirationDays(21);
+        when(defaultExpirationDaysService.getByProductType(ProductType.DAIRY))
+                .thenReturn(Optional.of(defaults(ProductType.DAIRY, 14, 3)));
+        LocalDate earliestExpected = LocalDate.now().plusDays(21);
+
+        LocalDate result = policy.computeEffectiveExpireAt(
+                null, null, product, null, null);
+
+        LocalDate latestExpected = LocalDate.now().plusDays(21);
         assertThat(result).isBetween(earliestExpected, latestExpected);
     }
 

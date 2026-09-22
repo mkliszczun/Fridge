@@ -28,7 +28,7 @@ class AiProductBudgetTest {
     private final AiBudgetService budget = mock(AiBudgetService.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private final AiBudgetService.Reservation reservation = new AiBudgetService.Reservation(userId, LocalDate.now(), 30400, 2000);
-    private final AiProductGenerateRequest request = new AiProductGenerateRequest("Mleko", null, null, null, null, null, null);
+    private final AiProductGenerateRequest request = new AiProductGenerateRequest("Mleko", null, null, null, null, null, null, null);
     private MockRestServiceServer server;
     private AiProductService service;
     private ValidatorFactory factory;
@@ -51,7 +51,7 @@ class AiProductBudgetTest {
     }
 
     @Test void invalidOutputRetryChargesBothResponsesButCountsOneUse() throws Exception {
-        for (String output : List.of("{}", "{\"brand\":null,\"productType\":\"DAIRY\",\"defaultUnit\":\"MILLILITER\",\"shelfLifeAfterOpeningDays\":3}")) {
+        for (String output : List.of("{}", "{\"brand\":null,\"productType\":\"DAIRY\",\"defaultUnit\":\"MILLILITER\",\"defaultExpirationDays\":21,\"shelfLifeAfterOpeningDays\":3}")) {
             server.expect(requestTo("https://api.openai.com/v1/responses")).andRespond(withSuccess(mapper.writeValueAsString(
                     Map.of("output_text", output, "usage", Map.of("input_tokens", 100, "output_tokens", 40))), MediaType.APPLICATION_JSON));
         }

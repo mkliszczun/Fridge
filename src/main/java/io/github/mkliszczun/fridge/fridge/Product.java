@@ -4,6 +4,7 @@ import io.github.mkliszczun.fridge.common.Audit;
 import io.github.mkliszczun.fridge.enums.ProductType;
 import io.github.mkliszczun.fridge.enums.Unit;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
@@ -39,6 +40,10 @@ public class Product extends Audit {
     @PositiveOrZero
     private Integer shelfLifeAfterOpeningDays; // null => użyj domyślnych per productType
 
+    @PositiveOrZero
+    @Max(3650)
+    private Integer defaultExpirationDays; // null => użyj domyślnych per productType
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Unit defaultUnit = Unit.GRAM;
@@ -62,6 +67,8 @@ public class Product extends Audit {
     public void setFat100(BigDecimal fat100) { this.fat100 = fat100; }
     public Integer getShelfLifeAfterOpeningDays() { return shelfLifeAfterOpeningDays; }
     public void setShelfLifeAfterOpeningDays(Integer days) { this.shelfLifeAfterOpeningDays = days; }
+    public Integer getDefaultExpirationDays() { return defaultExpirationDays; }
+    public void setDefaultExpirationDays(Integer days) { this.defaultExpirationDays = days; }
     public Unit getDefaultUnit() { return defaultUnit; }
     public void setDefaultUnit(Unit defaultUnit) { this.defaultUnit = defaultUnit; }
 }

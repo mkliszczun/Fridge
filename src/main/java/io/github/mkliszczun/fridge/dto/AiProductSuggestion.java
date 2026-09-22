@@ -8,4 +8,5 @@ import jakarta.validation.constraints.*;
 public record AiProductSuggestion(@Size(max = 255) String brand,
                                  @NotNull ProductType productType,
                                  @NotNull Unit defaultUnit,
+                                 @PositiveOrZero @Max(3650) Integer defaultExpirationDays,
                                  @PositiveOrZero @Max(3650) Integer shelfLifeAfterOpeningDays) {}

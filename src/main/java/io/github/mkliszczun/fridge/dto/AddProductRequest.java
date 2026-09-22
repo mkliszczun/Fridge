@@ -3,6 +3,7 @@ package io.github.mkliszczun.fridge.dto;
 import io.github.mkliszczun.fridge.enums.ProductType;
 import io.github.mkliszczun.fridge.enums.Unit;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
@@ -11,5 +12,6 @@ public record AddProductRequest(@NotBlank String name,
                                 ProductType productType,
                                 Unit defaultUnit,
                                 @PositiveOrZero Integer shelfLifeAfterOpeningDays,
+                                @PositiveOrZero @Max(3650) Integer defaultExpirationDays,
                                 @Size(max = 255) String brand) {
 }

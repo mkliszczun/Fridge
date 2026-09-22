@@ -35,7 +35,7 @@ public class ProductsController {
                 req.productType(),
                 req.ean(),
                 req.defaultUnit(),
-                req.shelfLifeAfterOpeningDays(), req.brand());
+                req.shelfLifeAfterOpeningDays(), req.defaultExpirationDays(), req.brand());
         return toResponse(savedProduct);
     }
 
@@ -79,7 +79,8 @@ public class ProductsController {
                 product.getName(),
                 product.getBrand(),
                 product.getDefaultUnit(),
-                product.getShelfLifeAfterOpeningDays()
+                product.getShelfLifeAfterOpeningDays(),
+                product.getDefaultExpirationDays()
                 );
     }
 }
