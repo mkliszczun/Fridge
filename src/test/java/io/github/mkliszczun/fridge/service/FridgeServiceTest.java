@@ -1,6 +1,7 @@
 package io.github.mkliszczun.fridge.service;
 
 import io.github.mkliszczun.fridge.enums.FridgeRole;
+import io.github.mkliszczun.fridge.entity.UserEntity;
 import io.github.mkliszczun.fridge.exception.ConflictException;
 import io.github.mkliszczun.fridge.exception.ForbiddenException;
 import io.github.mkliszczun.fridge.exception.NotFoundException;
@@ -8,6 +9,7 @@ import io.github.mkliszczun.fridge.fridge.Fridge;
 import io.github.mkliszczun.fridge.fridge.FridgeMember;
 import io.github.mkliszczun.fridge.repository.FridgeMemberRepository;
 import io.github.mkliszczun.fridge.repository.FridgeRepository;
+import io.github.mkliszczun.fridge.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +30,9 @@ class FridgeServiceTest {
     FridgeRepository fridgeRepository;
     @Mock
     FridgeMemberRepository memberRepository;
+
+    @Mock
+    UserRepository userRepository;
 
     @InjectMocks
     FridgeServiceImpl fridgeService;
@@ -54,6 +59,7 @@ class FridgeServiceTest {
 
     @Test
     void createFridge_createsFridge_andOwnerMembership_setDefaultIfNone() {
+        when(userRepository.findLockedById(userId)).thenReturn(Optional.of(new UserEntity()));
         when(fridgeRepository.save(any(Fridge.class))).thenReturn(persistedFridge);
         when(memberRepository.existsDefaultForUser(userId)).thenReturn(false);
 
@@ -74,6 +80,7 @@ class FridgeServiceTest {
 
     @Test
     void createFridge_setsDefaultFalse_ifUserAlreadyHasDefault() {
+        when(userRepository.findLockedById(userId)).thenReturn(Optional.of(new UserEntity()));
         when(fridgeRepository.save(any(Fridge.class))).thenReturn(persistedFridge);
         when(memberRepository.existsDefaultForUser(userId)).thenReturn(true);
 
@@ -160,7 +167,7 @@ class FridgeServiceTest {
         } catch (Exception ignore) {
         }
 
-        when(fridgeRepository.findById(fridgeId)).thenReturn(Optional.of(persistedFridge));
+        when(fridgeRepository.findByIdForUpdate(fridgeId)).thenReturn(Optional.of(persistedFridge));
         when(memberRepository.findByFridgeIdAndUserId(fridgeId, userId)).thenReturn(Optional.of(owner));
 
         fridgeService.deleteFridge(fridgeId, userId, true);
@@ -177,7 +184,7 @@ class FridgeServiceTest {
         member.setUserId(userId);
         member.setRoleInFridge(FridgeRole.MEMBER);
 
-        when(fridgeRepository.findById(fridgeId)).thenReturn(Optional.of(persistedFridge));
+        when(fridgeRepository.findByIdForUpdate(fridgeId)).thenReturn(Optional.of(persistedFridge));
         when(memberRepository.findByFridgeIdAndUserId(fridgeId, userId)).thenReturn(Optional.of(member));
 
         assertThatThrownBy(() -> fridgeService.deleteFridge(fridgeId, userId, true))
@@ -188,7 +195,7 @@ class FridgeServiceTest {
 
     @Test
     void deleteFridge_notMember_forbidden() {
-        when(fridgeRepository.findById(fridgeId)).thenReturn(Optional.of(persistedFridge));
+        when(fridgeRepository.findByIdForUpdate(fridgeId)).thenReturn(Optional.of(persistedFridge));
         when(memberRepository.findByFridgeIdAndUserId(fridgeId, userId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> fridgeService.deleteFridge(fridgeId, userId, true))
@@ -203,7 +210,7 @@ class FridgeServiceTest {
         owner.setUserId(userId);
         owner.setRoleInFridge(FridgeRole.OWNER);
 
-        when(fridgeRepository.findById(fridgeId)).thenReturn(Optional.of(persistedFridge));
+        when(fridgeRepository.findByIdForUpdate(fridgeId)).thenReturn(Optional.of(persistedFridge));
         when(memberRepository.findByFridgeIdAndUserId(fridgeId, userId)).thenReturn(Optional.of(owner));
 
         assertThatThrownBy(() -> fridgeService.deleteFridge(fridgeId, userId, false))
@@ -213,7 +220,7 @@ class FridgeServiceTest {
 
     @Test
     void deleteFridge_notFound_throws() {
-        when(fridgeRepository.findById(fridgeId)).thenReturn(Optional.empty());
+        when(fridgeRepository.findByIdForUpdate(fridgeId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> fridgeService.deleteFridge(fridgeId, userId, true))
                 .isInstanceOf(NotFoundException.class);

@@ -8,6 +8,7 @@ import io.github.mkliszczun.fridge.fridge.Fridge;
 import io.github.mkliszczun.fridge.fridge.FridgeMember;
 import io.github.mkliszczun.fridge.repository.FridgeMemberRepository;
 import io.github.mkliszczun.fridge.repository.FridgeRepository;
+import io.github.mkliszczun.fridge.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -19,11 +20,13 @@ public class FridgeServiceImpl implements FridgeService {
 
     private final FridgeRepository fridgeRepository;
     private final FridgeMemberRepository memberRepository;
+    private final UserRepository userRepository;
 
     public FridgeServiceImpl(FridgeRepository fridgeRepository,
-                         FridgeMemberRepository memberRepository) {
+                         FridgeMemberRepository memberRepository, UserRepository userRepository) {
         this.fridgeRepository = fridgeRepository;
         this.memberRepository = memberRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -32,6 +35,10 @@ public class FridgeServiceImpl implements FridgeService {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("name must not be blank");
         }
+
+        // Serialize default-fridge selection with invitation acceptance and account deletion.
+        userRepository.findLockedById(currentUserId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
         Fridge fridge = new Fridge();
         fridge.setName(name);
@@ -50,7 +57,7 @@ public class FridgeServiceImpl implements FridgeService {
     @Transactional
     @Override
     public void deleteFridge(UUID fridgeId, UUID currentUserId, boolean hardDeleteIfEmpty) {
-        Fridge fridge = fridgeRepository.findById(fridgeId)
+        Fridge fridge = fridgeRepository.findByIdForUpdate(fridgeId)
                 .orElseThrow(() -> new NotFoundException("Fridge not found"));
 
         FridgeMember membership = memberRepository.findByFridgeIdAndUserId(fridgeId, currentUserId)

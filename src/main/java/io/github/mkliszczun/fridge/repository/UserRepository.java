@@ -12,6 +12,9 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     Optional<UserEntity> findByEmail(String email);
     Optional<UserEntity> findByPasswordResetHash(String hash);
 
+    @Query("select u.id from UserEntity u where lower(u.email) = :email and u.emailVerifiedAt is not null")
+    List<UUID> findVerifiedIdsByEmail(String email);
+
     @Query("select u from UserEntity u where lower(u.email) = :address or lower(u.username) = :address")
     List<UserEntity> findAddressOwners(String address);
 
